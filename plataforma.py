@@ -2,50 +2,42 @@ import streamlit as st
 
 st.set_page_config(
     page_title="Intranet DIOPE GEFID",
-    page_icon="img/bb_ico.ico",
+    page_icon="img/bbfav.svg",
     layout="wide",
-    initial_sidebar_state="collapsed",
 )
 
-st.logo("img/bb_logo.jpg", size="large", link="https://gefid-aplic-1.intranet.bb.com.br/")
+st.logo(image="img/bb_png.png", size="large", link="https://gefid-aplic-1.intranet.bb.com.br/")
 
-cards = [
-    "Aplicações e Resgates", "BB Escrituração", "Captura CRA - Valores",
-    "Conciliador - Conta Corrente\nControladoria de Fundos", "Conciliador Internacional (2024)",
-    "Conversor EGT", "Grandes Números - Precificação", "Módulo CBIO", "Módulo CBIO - Custódia",
-    "Módulo CBIO - Negociação", "Módulo de Carteiras", "Módulo de Clientes",
-    "Módulo de Cobrança de Tarifas GEFID", "Módulo de Conciliação CETIP-B3 x Drive",
-    "Módulo de Conciliação de Conta\nCaixa de Fundos", "Módulo de Conciliação Drive x GFI",
-    "Módulo de Conciliação em Moeda Estrangeira", "Módulo de Conciliação GFI x CETIP",
-    "Módulo de Conciliação Internacional", "Módulo de Conciliação IPN",
-    "Módulo de Conciliação Selic x SAC", "Módulo de Demonstrações Contábeis de Fundos",
-    "Módulo de Dias Utéis", "Módulo de Integração de Tarifas", "Módulo de Lançamentos a Estornar - Contabilidade",
-    "Módulo de Lançamentos EGT", "Módulo de Precificação", "Módulo de Precificação de CRIs",
-    "Módulo de Usuários", "Módulo DEB-EGT Selic", "Módulo Fundos - Brasilprev",
-    "Módulo Gerador de Relatório Rendimento Cotista", "Módulo Importador de Fundos",
-    "Módulo Impressão GFI", "Módulo Inventário", "Módulo Liquidação Financeira EGT BI-B3",
-    "Módulo Papel Zero", "Módulo Papel Zero - Boletas CETIP", "Módulo Papel Zero - Boletas Selic",
-    "Papel Zero - Liquidação BBDTVM", "Partidas", "Taxa de Administração"
-]
+pages: dict[str, list[st.Page]] = {
+    "Atendimento aos Clientes": [
+        st.Page("bases/page1.py", title="Base de Investidores", icon=":material/bug_report:"),
+        st.Page("bases/page2.py", title="Rendimentos Distribuídos", icon=":material/bug_report:"),
+        st.Page("bases/page3.py", title="Rendimentos Pagos", icon=":material/bug_report:"),
+        st.Page("bases/page4.py", title="Rendimentos Pendentes", icon=":material/bug_report:"),
+        st.Page("bases/page5.py", title="DIPJ", icon=":material/bug_report:"),
+        st.Page("bases/page6.py", title="Cálculo de Rendimentos", icon=":material/bug_report:"),
+        st.Page("bases/page7.py", title="EDIV", icon=":material/bug_report:"),
+        st.Page("bases/page8.py", title="Autorregulação BB", icon=":material/bug_report:"),
+    ],
+    "Atendimento aos Investidores": [
+        st.Page("bases/page9.py", title="Informe de Rendimentos", icon=":material/bug_report:", default=True),
+        st.Page("bases/page10.py", title="Extrato de Movimentação", icon=":material/bug_report:"),
+        st.Page("bases/page11.py", title="Extrato de Rendimentos", icon=":material/bug_report:"),
+        st.Page("bases/page12.py", title="Consulta Cautelas (ABB/BBA)", icon=":material/bug_report:"),
+    ],
+    "Obrigações / Rotinas": [
+        st.Page("bases/page13.py", title="Circular BACEN 3945", icon=":material/bug_report:"),
+        st.Page("bases/page14.py", title="Circular BACEN 3624", icon=":material/bug_report:"),
+        st.Page("bases/page15.py", title="Resolução CVM 160", icon=":material/bug_report:"),
+    ],
+    "Declarações Diversas": [
+        st.Page("bases/page16.py", title="Ações em Tesouraria", icon=":material/bug_report:"),
+        st.Page("bases/page17.py", title="Cancelamento de CEPAC", icon=":material/bug_report:"),
+        st.Page("bases/page18.py", title="Maiores Investidores", icon=":material/bug_report:"),
+        st.Page("bases/page19.py", title="Maiores Investidores Percentual", icon=":material/bug_report:"),
+    ]
+}
 
-cont, params = 0, dict(type="primary", use_container_width=True)
+pg = st.navigation(pages, expanded=True)
 
-with st.sidebar:
-    with st.container(border=True):
-        st.write("**Navegação**")
-        st.link_button("**Intranet BB**", url="https://intranet.bb.com.br/", **params)
-        st.link_button("**Demandas Externas**", url="https://www.bb.com.br/", **params)
-
-    with st.expander("**Escolha o aplicativo abaixo:**"):
-        for _ in range(len(cards)):
-            if cont < len(cards):
-                with st.container(border=True):
-                    st.button(f"**{cards[cont]}**", key=f"btn_{cont:02d}", **params)
-                    cont += 1
-            else:
-                break
-
-st.header("DIOPE GEFID")
-st.subheader("Diretoria Operações - Gerência de Serviços Fiduciários")
-
-st.json(st.session_state)
+pg.run()
