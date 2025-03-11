@@ -20,7 +20,7 @@ pages: dict[str, list[st.Page]] = {
         st.Page("bases/page8.py", title="Autorregulação BB", icon=":material/bug_report:"),
     ],
     "Atendimento aos Investidores": [
-        st.Page("bases/page9.py", title="Informe de Rendimentos", icon=":material/bug_report:", default=True),
+        st.Page("bases/informeir.py", title="Informe de Rendimentos", icon=":material/bug_report:", default=True),
         st.Page("bases/page10.py", title="Extrato de Movimentação", icon=":material/bug_report:"),
         st.Page("bases/page11.py", title="Extrato de Rendimentos", icon=":material/bug_report:"),
         st.Page("bases/page12.py", title="Consulta Cautelas (ABB/BBA)", icon=":material/bug_report:"),
