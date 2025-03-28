@@ -1,4 +1,5 @@
 import streamlit as st
+from streamlit.navigation.page import StreamlitPage
 
 st.set_page_config(
     page_title="Intranet DIOPE GEFID",
@@ -8,36 +9,53 @@ st.set_page_config(
 
 st.logo(image="img/bb_png.png", size="large", link="https://gefid-aplic-1.intranet.bb.com.br/")
 
-pages: dict[str, list[st.Page]] = {
+pages: dict[str, list[StreamlitPage]] = {
+    "Home": [
+        st.Page(page="apps/home.py", title="BB Escrituração", icon=":material/home:", default=True),
+    ],
     "Atendimento aos Clientes": [
-        st.Page(page="bases/page1.py", title="Base de Investidores", icon=":material/bug_report:"),
-        st.Page(page="bases/page2.py", title="Rendimentos Distribuídos", icon=":material/bug_report:"),
-        st.Page(page="bases/page3.py", title="Rendimentos Pagos", icon=":material/bug_report:"),
-        st.Page(page="bases/page4.py", title="Rendimentos Pendentes", icon=":material/bug_report:"),
-        st.Page(page="bases/page5.py", title="DIPJ", icon=":material/bug_report:"),
-        st.Page(page="bases/page6.py", title="Cálculo de Rendimentos", icon=":material/bug_report:"),
-        st.Page(page="bases/page7.py", title="EDIV", icon=":material/bug_report:"),
-        st.Page(page="bases/page8.py", title="Autorregulação BB", icon=":material/bug_report:"),
+        st.Page(page="apps/base-investidores.py", title="Base de Investidores", icon=":material/account_balance:"),
+        st.Page(page="apps/rendimentos-distribuidos.py", title="Rendimentos Distribuídos", icon=":material/send_money:"),
+        st.Page(page="apps/rendimentos-pagos.py", title="Rendimentos Pagos", icon=":material/paid:"),
+        st.Page(page="apps/rendimentos-pendentes.py", title="Rendimentos Pendentes", icon=":material/savings:"),
+        st.Page(page="apps/dipj.py", title="DIPJ", icon=":material/dynamic_form:"),
+        st.Page(page="apps/calculo-rendimentos.py", title="Cálculo de Rendimentos", icon=":material/calculate:"),
+        st.Page(page="apps/ediv.py", title="EDIV", icon=":material/diversity_3:"),
+        st.Page(page="apps/autorregulacao-bb.py", title="Autorregulação BB", icon=":material/published_with_changes:"),
     ],
     "Atendimento aos Investidores": [
-        st.Page(page="bases/informeir.py", title="Informe de Rendimentos", icon=":material/bug_report:", default=True),
-        st.Page(page="bases/page10.py", title="Extrato de Movimentação", icon=":material/bug_report:"),
-        st.Page(page="bases/page11.py", title="Extrato de Rendimentos", icon=":material/bug_report:"),
-        st.Page(page="bases/page12.py", title="Consulta Cautelas (ABB/BBA)", icon=":material/bug_report:"),
+        st.Page(page="apps/informe-rendimentos.py", title="Informe de Rendimentos", icon=":material/ad:"),
+        st.Page(page="apps/extrato-movimentacao.py", title="Extrato de Movimentação", icon=":material/wysiwyg:"),
+        st.Page(page="apps/extrato-rendimentos.py", title="Extrato de Rendimentos", icon=":material/local_atm:"),
+        st.Page(page="apps/consulta-cautelar.py", title="Consulta Cautelas (ABB/BBA)", icon=":material/autorenew:"),
     ],
     "Obrigações / Rotinas": [
-        st.Page(page="bases/page13.py", title="Circular BACEN 3945", icon=":material/bug_report:"),
-        st.Page(page="bases/page14.py", title="Circular BACEN 3624", icon=":material/bug_report:"),
-        st.Page(page="bases/page15.py", title="Resolução CVM 160", icon=":material/bug_report:"),
+        st.Page(page="apps/circular-3945.py", title="Circular BACEN 3945", icon=":material/cycle:"),
+        st.Page(page="apps/circular-3624.py", title="Circular BACEN 3624", icon=":material/cycle:"),
+        st.Page(page="apps/cvm-160.py", title="Resolução CVM 160", icon=":material/siren:"),
     ],
     "Declarações Diversas": [
-        st.Page(page="bases/page16.py", title="Ações em Tesouraria", icon=":material/bug_report:"),
-        st.Page(page="bases/page17.py", title="Cancelamento de CEPAC", icon=":material/bug_report:"),
-        st.Page(page="bases/page18.py", title="Maiores Investidores", icon=":material/bug_report:"),
-        st.Page(page="bases/page19.py", title="Maiores Investidores Percentual", icon=":material/bug_report:"),
+        st.Page(page="apps/acoes-tesouraria.py", title="Ações em Tesouraria", icon=":material/bar_chart_4_bars:"),
+        st.Page(page="apps/cancela-cepac.py", title="Cancelamento de CEPAC", icon=":material/hide_source:"),
+        st.Page(page="apps/maiores-investidores.py", title="Maiores Investidores", icon=":material/editor_choice:"),
+        st.Page(page="apps/maiores-investidores-percentual.py", title="Maiores Investidores Percentual",
+                icon=":material/workspace_premium:"),
     ]
 }
 
-pg = st.navigation(pages, expanded=True)
+st.navigation(pages, expanded=True).run()
 
-pg.run()
+st.sidebar.markdown("[:material/account_balance: Intranet BB](https://intranet.bb.com.br)")
+
+st.sidebar.markdown("[:material/account_balance: Portal Diope](https://portal.diope.bb.com.br)")
+
+st.sidebar.markdown("[:material/account_balance: Portal Gefid](https://gefid-aplic-1intranet.bb.com.br)")
+
+markdown: str = """
+<style>
+    [data-testid='stHeader'] {display: none;}
+    #MainMenu {visibility: hidden} footer {visibility: hidden}
+</style>
+"""
+
+st.markdown(markdown, unsafe_allow_html=True)
