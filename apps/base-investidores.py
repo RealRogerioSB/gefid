@@ -1,5 +1,5 @@
 import os
-from datetime import date
+from datetime import date, timedelta
 
 import polars as pl
 import streamlit as st
@@ -27,7 +27,7 @@ def load_active(active: str) -> dict[int, str]:
                 INNER JOIN DB2MCI.CLIENTE AS t2
                     ON t2.COD = t1.CD_CLI_EMT
             WHERE
-                t1.DT_ECR_CTR IS {0}
+                t1.DT_ECR_CTR IS {}
         """.format(active),
         connection=conn,
         infer_schema_length=None
@@ -38,7 +38,7 @@ def load_active(active: str) -> dict[int, str]:
 @st.cache_data(show_spinner="Obtendo os dados, aguarde...")
 def report(_mci, _nome):
     base = pl.read_database(
-        query="""
+        query=f"""
             SELECT
                 t5.CD_CLI_ACNT AS MCI,
                 STRIP(CASE
@@ -82,7 +82,7 @@ def report(_mci, _nome):
                     FROM
                         DB2AEB.MVTC_DIAR_PSC t1
                     WHERE
-                        t1.CD_CLI_EMT = {0}
+                        t1.CD_CLI_EMT = {_mci}
                     UNION ALL
                     SELECT
                         t1.CD_CLI_EMT,
@@ -94,7 +94,7 @@ def report(_mci, _nome):
                     FROM
                         DB2AEB.PSC_TIT_MVTD t1
                     WHERE
-                        t1.CD_CLI_EMT = {0}
+                        t1.CD_CLI_EMT = {_mci}
                 ) t10
             ) t5
                 LEFT JOIN DB2MCI.CLIENTE t6
@@ -104,11 +104,11 @@ def report(_mci, _nome):
                 LEFT JOIN DB2AEB.VCL_ACNT_BLS t8
                     ON t5.CD_CLI_ACNT = t8.CD_CLI_ACNT
             WHERE
-                DATA BETWEEN {1} AND {2}
+                DATA BETWEEN {date(year, month, 28).strftime("%Y-%m-%d")!r} AND {hoje.strftime("%Y-%m-%d")!r}
             ORDER BY
                 CAST(t5.CD_CLI_ACNT AS INTEGER),
                 DATA DESC
-        """.format(_mci, repr(date(year, month, 28).strftime("%Y-%m-%d")), repr(hoje.strftime("%Y-%m-%d"))),
+        """,
         connection=conn,
         infer_schema_length=None
     )
@@ -120,7 +120,7 @@ def report(_mci, _nome):
     base = base.with_columns(base["COD_TITULO"].cast(pl.Utf8))
 
     cadastro = pl.read_database(
-        query="""
+        query=f"""
             SELECT
                 t1.CD_CLI_EMT AS MCI,
                 STRIP(t1.SG_EMP) AS SIGLA,
@@ -131,8 +131,8 @@ def report(_mci, _nome):
                 INNER JOIN DB2MCI.CLIENTE t2
                     ON t2.COD = t1.CD_CLI_EMT
             WHERE
-                t1.CD_CLI_EMT = {0}
-        """.format(_mci),
+                t1.CD_CLI_EMT = {_mci}
+        """,
         connection=conn,
         infer_schema_length=None
     )
@@ -191,7 +191,10 @@ empresa = st.selectbox(
 mci = next((chave for chave, valor in kv.items() if valor == empresa), 0)
 
 col = st.columns(3)
-hoje = col[0].date_input(label="**Data:**", value=date.today(), format="DD/MM/YYYY")
+hoje = col[0].date_input(label="**Data:**", value=date.today().replace(day=1) - timedelta(days=1), format="DD/MM/YYYY")
+
+year = hoje.year - 1 if hoje.month == 1 else hoje.year
+month = 12 if hoje.month == 1 else hoje.month - 1
 
 params = dict(type="primary", use_container_width=True)
 
@@ -211,5 +214,9 @@ with st.container(border=True):
     if col[2].button(label="Arquivo Excel", key="btn_excel", icon=":material/unarchive:", **params):
         pass
 
-year = hoje.year - 1 if hoje.month == 1 else hoje.year
-month = 12 if hoje.month == 1 else hoje.month - 1
+st.markdown("""
+<style>
+    [data-testid='stHeader'] {display: none;}
+    #MainMenu {visibility: hidden} footer {visibility: hidden}
+</style>
+""", unsafe_allow_html=True)
