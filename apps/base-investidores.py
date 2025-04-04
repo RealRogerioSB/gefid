@@ -1,16 +1,12 @@
-import os
 from datetime import date, timedelta
 
 import polars as pl
 import streamlit as st
-from dotenv import load_dotenv
 from sqlalchemy import create_engine
-
-load_dotenv()
 
 st.cache_data.clear()
 
-conn = create_engine(os.getenv("DB2"))
+engine = create_engine(st.secrets["connections"]["DB2"]["url"])
 
 st.subheader(":material/account_balance: Base de Investidores")
 
@@ -29,7 +25,7 @@ def load_active(active: str) -> dict[int, str]:
             WHERE
                 t1.DT_ECR_CTR IS {}
         """.format(active),
-        connection=conn,
+        connection=engine,
         infer_schema_length=None
     )
     return {k: v for k, v in zip(df["MCI"].to_list(), df["NOM"].to_list())}
@@ -109,14 +105,14 @@ def report(_mci, _nome):
                 CAST(t5.CD_CLI_ACNT AS INTEGER),
                 DATA DESC
         """,
-        connection=conn,
+        connection=engine,
         infer_schema_length=None
     )
     base = base.with_columns((base["MCI"].cast(pl.Utf8) + "-" + base["COD_TITULO"].cast(pl.Utf8) + "-" +
                               base["CUSTODIANTE"].cast(pl.Utf8)).alias("PK"))
     base = base.group_by(["PK"]).agg(pl.col("*").first())
     base = base.filter(~pl.col("MCI").is_in([205007939, 211684707]) & (pl.col("QUANTIDADE") != 0))
-    # base = base.with_row_count(name="index")
+    base = base.with_row_index(name="index")
     base = base.with_columns(base["COD_TITULO"].cast(pl.Utf8))
 
     cadastro = pl.read_database(
@@ -133,7 +129,7 @@ def report(_mci, _nome):
             WHERE
                 t1.CD_CLI_EMT = {_mci}
         """,
-        connection=conn,
+        connection=engine,
         infer_schema_length=None
     )
 
@@ -142,7 +138,7 @@ def report(_mci, _nome):
     cnpj = cadastro["CNPJ"][0]
     sigla = cadastro["SIGLA"][0]
 
-    fixo = base.select(["MCI"]).unique()
+    fixo = base.select(pl.col("MCI")).unique()
     # fixo = fixo.unique(["MCI"])
 
     list_title = []
@@ -191,28 +187,29 @@ empresa = st.selectbox(
 mci = next((chave for chave, valor in kv.items() if valor == empresa), 0)
 
 col = st.columns(3)
-hoje = col[0].date_input(label="**Data:**", value=date.today().replace(day=1) - timedelta(days=1), format="DD/MM/YYYY")
+hoje = col[0].date_input(label="**Data:**", value=date.today() - timedelta(days=1), format="DD/MM/YYYY")
 
 year = hoje.year - 1 if hoje.month == 1 else hoje.year
 month = 12 if hoje.month == 1 else hoje.month - 1
 
 params = dict(type="primary", use_container_width=True)
 
-with st.container(border=True):
-    col = st.columns(3)
+st.divider()
 
-    if col[0].button(label="Visualizar na tela", key="btn_view", icon=":material/preview:", **params):
-        get_report = report(mci, empresa)
-        if not get_report.is_empty():
-            st.dataframe(get_report)
-        else:
-            st.toast(body="Sem dados para exibir.", icon="⚠️")
+col = st.columns(3)
 
-    if col[1].button(label="Arquivo CSV", key="btn_csv", icon=":material/unarchive:", **params):
-        pass
+if col[0].button(label="Visualizar na tela", key="btn_view", icon=":material/preview:", **params):
+    get_report = report(mci, empresa)
+    if not get_report.is_empty():
+        st.dataframe(get_report)
+    else:
+        st.toast(body="Sem dados para exibir.", icon="⚠️")
 
-    if col[2].button(label="Arquivo Excel", key="btn_excel", icon=":material/unarchive:", **params):
-        pass
+if col[1].button(label="Arquivo CSV", key="btn_csv", icon=":material/csv:", **params):
+    pass
+
+if col[2].button(label="Arquivo Excel", key="btn_excel", icon=":material/format_list_numbered_rtl:", **params):
+    pass
 
 st.markdown("""
 <style>

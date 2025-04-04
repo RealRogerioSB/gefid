@@ -1,16 +1,12 @@
-import os
 from datetime import date, timedelta
 
 import polars as pl
 import streamlit as st
-from dotenv import load_dotenv
 from sqlalchemy import create_engine
-
-load_dotenv()
 
 st.cache_data.clear()
 
-engine = create_engine(os.getenv("DB2"))
+engine = create_engine(st.secrets["connections"]["DB2"]["url"])
 
 st.subheader(":material/siren: Resolução CVM 160")
 
