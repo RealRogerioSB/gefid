@@ -9,7 +9,7 @@ st.set_page_config(
 st.logo(image="img/bb_png.png", size="large", link="https://gefid-aplic-1.intranet.bb.com.br/")
 
 st.navigation(
-    page={
+    pages={
         "Home": [
             st.Page(page="apps/home.py", title="BB Escrituração", icon=":material/home:", default=True),
         ],
