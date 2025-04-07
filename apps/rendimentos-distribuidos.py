@@ -109,34 +109,53 @@ st.divider()
 col = st.columns(3)
 
 if col[0].button(label="**Visualizar na tela**", key="btn_view", icon=":material/preview:", **params):
-    get_report = load_report(mci, ano, mes)
-    if not get_report.is_empty():
+    get_view = load_report(mci, ano, mes)
+    if not get_view.is_empty():
         get_data = load_data(mci)
         st.write(f"**MCI:** {get_data['MCI'][0]}")
         st.write(f"**EMPRESA:** {get_data['EMPRESA'][0]}")
         st.write(f"**CNPJ:** {get_data['CNPJ'][0]}")
         st.write(f"**MÊS/ANO:** {mes:02d}/{ano}")
-        st.write(f"**TOTAL BRUTO:** R$ {float(get_report['VALOR'].sum()):_.2f}"
+        st.write(f"**TOTAL BRUTO:** R$ {float(get_view['VALOR'].sum()):_.2f}"
                  .replace(".", ",").replace("_", "."))
-        st.write(f"**TOTAL IR:** R$ {float(get_report['VALOR_IR'].sum()):_.2f}"
+        st.write(f"**TOTAL IR:** R$ {float(get_view['VALOR_IR'].sum()):_.2f}"
                  .replace(".", ",").replace("_", "."))
-        st.write(f"**TOTAL LÍQUIDO:** R$ {float(get_report['VALOR_LIQUIDO'].sum()):_.2f}"
+        st.write(f"**TOTAL LÍQUIDO:** R$ {float(get_view['VALOR_LIQUIDO'].sum()):_.2f}"
                  .replace(".", ",").replace("_", "."))
-        st.dataframe(get_report)
+        st.dataframe(get_view)
     else:
         st.toast(body="**Sem dados para exibir.**", icon="⚠️")
 
 if col[1].button(label="**Arquivo CSV**", key="btn_csv", icon=":material/csv:", **params):
-    get_report = load_report(mci, ano, mes)
-    if not get_report.is_empty():
-        get_data = load_data(mci)
-        sigla = get_data["SIGLA"][0]
-        get_report.write_csv(file=f"static/escriturais/@deletar/{sigla}-{mes}-{ano}-Rendimentos Distribuídos.csv")
+    get_csv = load_report(mci, ano, mes)
+    if not get_csv.is_empty():
+        sigla = load_data(mci)["SIGLA"][0]
+        get_csv.write_csv(file=f"static/escriturais/@deletar/{sigla}-{mes}-{ano}-Rendimentos Distribuídos.csv")
     else:
         st.toast(body="**Sem dados para exibir.**", icon="⚠️")
 
 if col[2].button(label="**Arquivo Excel**", key="btn_excel", icon=":material/format_list_numbered_rtl:", **params):
-    pass
+    get_xlsx = load_report(mci, ano, mes)
+    if not get_xlsx.is_empty():
+        sigla = load_data(mci)["SIGLA"][0]
+        if len(get_xlsx) <= int(1e6):
+            caminho_saida = f"static/escriturais/@deletar/{sigla}-{mes}-{ano}-Rendimentos Distribuídos.xlsx"
+            get_xlsx.write_excel(workbook=caminho_saida)
+
+            st.toast(body="**Arquivo XLSX enviado para a pasta específica**", icon="✔️")
+        else:
+            caminho_saida_1 = f"static/escriturais/@deletar/{sigla}-{mes}-{ano}-Rendimentos Distribuidos-parte1.xlsx"
+            get_xlsx[:int(1e6)].write_excel(workbook=caminho_saida_1)
+
+            caminho_saida_2 = f"static/escriturais/@deletar/{sigla}-{mes}-{ano}-Rendimentos Distribuidos-parte2.xlsx"
+            get_xlsx[int(1e6):int(2e6)].write_excel(workbook=caminho_saida_2)
+
+            caminho_saida_3 = f"static/escriturais/@deletar/{sigla}-{mes}-{ano}-Rendimentos Distribuidos-parte3.xlsx"
+            get_xlsx[int(2e6):].write_excel(workbook=caminho_saida_3)
+
+            st.toast(body="**Mais partes de arquivos XLSX enviados para a pasta específica**", icon="✔️")
+    else:
+        st.toast(body="**Sem dados para exibir**", icon="⚠️")
 
 st.markdown("""
 <style>
