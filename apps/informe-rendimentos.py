@@ -1,16 +1,12 @@
-import os
 import re
 from datetime import date
 
-import polars as pl
+import pandas as pd
 import streamlit as st
-from dotenv import load_dotenv
-from sqlalchemy import create_engine
+from streamlit.connections import SQLConnection
 from unidecode import unidecode
 
-load_dotenv()
-
-conn = create_engine(os.getenv("DB2"))
+engine = st.connection(name="DB2", type=SQLConnection)
 
 st.subheader(f":material/ad: Informe de Rendimentos - {date.today().year}")
 
@@ -26,8 +22,8 @@ params_columns = dict(
 
 @st.cache_data(show_spinner=False)
 def get_join_email(field, value):
-    return pl.read_database(
-        query="""
+    return engine.query(
+        sql="""
             SELECT DISTINCT
                 t1.CD_CLI_ACNT AS MCI_INVESTIDOR,
                 CASE WHEN t1.CD_EST_PRCT = 13 THEN 'EMAIL ENVIADO' ELSE 'NÃO ENVIADO' END AS STATUS,
@@ -43,15 +39,15 @@ def get_join_email(field, value):
                 t2.{0} = {1} OR
                 t3.{0} = {1}
         """.format(field.upper(), value if value.isdigit() else repr(value)),
-        connection=conn,
-        infer_schema_length=None
+        show_spinner=False,
+        ttl=60
     )
 
 
 @st.cache_data(show_spinner=False)
 def get_email(field, value):
-    return pl.read_database(
-        query="""
+    return engine.query(
+        sql="""
             SELECT DISTINCT
                 CD_CLI_ACNT AS MCI_INVESTIDOR,
                 CASE WHEN CD_EST_PRCT = 13 THEN 'EMAIL ENVIADO' ELSE 'NÃO ENVIADO' END AS STATUS,
@@ -62,32 +58,32 @@ def get_email(field, value):
             WHERE
                 {0} = {1}
         """.format(field.upper(), value if value.isdigit() else repr(value)),
-        connection=conn,
-        infer_schema_length=None
+        show_spinner=False,
+        ttl=60
     )
 
 
 @st.cache_data(show_spinner=False)
 def get_bb(field, value):
-    return pl.read_database(
-        query=("SELECT * FROM DB2I13E5.IR2025_CADASTRO_BB WHERE {0} = {1}"
-               .format(field.upper(), value if value.isdigit() else repr(value))),
-        connection=conn,
-        infer_schema_length=None
+    return engine.query(
+        sql=("SELECT * FROM DB2I13E5.IR2025_CADASTRO_BB WHERE {0} = {1}"
+             .format(field.upper(), value if value.isdigit() else repr(value))),
+        show_spinner=False,
+        ttl=60
     )
 
 
 @st.cache_data(show_spinner=False)
 def get_b3(field, value):
-    return pl.read_database(
-        query=("SELECT * FROM DB2I13E5.IR2025_CADASTRO_B3 WHERE {0} = {1}"
-               .format(field.upper(), value if value.isdigit() else repr(value))),
-        connection=conn,
-        infer_schema_length=None
+    return engine.query(
+        sql=("SELECT * FROM DB2I13E5.IR2025_CADASTRO_B3 WHERE {0} = {1}"
+             .format(field.upper(), value if value.isdigit() else repr(value))),
+        show_spinner=False,
+        ttl=60
     )
 
 
-def report(mail: pl.DataFrame, bb: pl.DataFrame, b3: pl.DataFrame) -> None:
+def report(mail: pd.DataFrame, bb: pd.DataFrame, b3: pd.DataFrame) -> None:
     with st.container(border=True):
         st.markdown("##### Resultado da Pesquisa")
         st.markdown("###### Dados do envio:")

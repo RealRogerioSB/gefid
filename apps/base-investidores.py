@@ -2,18 +2,18 @@ from datetime import date
 
 import pandas as pd
 import streamlit as st
-from sqlalchemy import create_engine
+from streamlit.connections import SQLConnection
 
 st.cache_data.clear()
 
-engine = create_engine(st.secrets["connections"]["DB2"]["url"])
+engine = st.connection(name="DB2", type=SQLConnection)
 
 st.subheader(":material/account_balance: Base de Investidores")
 
 
 @st.cache_data(show_spinner="Obtendo os dados, aguarde...")
 def load_active(active: str) -> dict[int, str]:
-    df = pd.read_sql(
+    df = engine.query(
         sql=f"""
             SELECT
                 t1.CD_CLI_EMT AS MCI,
@@ -25,15 +25,16 @@ def load_active(active: str) -> dict[int, str]:
             WHERE
                 t1.DT_ECR_CTR IS {active}
         """,
-        con=engine
+        show_progress=False,
+        ttl=60,
     )
     return {k: v for k, v in zip(df["mci"].to_list(), df["nom"].to_list())}
 
 
 @st.cache_data(show_spinner="Obtendo os dados, aguarde...")
-def report(_mci: int, _year: int, _month: int, _data: date) -> pd.DataFrame:
-    base = pd.read_sql(
-        sql=f"""
+def load_report(_mci: int, _year: int, _month: int, _data: date) -> pd.DataFrame:
+    base = engine.query(
+        sql="""
             SELECT
                 t5.CD_CLI_ACNT AS MCI,
                 STRIP(CASE
@@ -77,7 +78,7 @@ def report(_mci: int, _year: int, _month: int, _data: date) -> pd.DataFrame:
                     FROM
                         DB2AEB.MVTC_DIAR_PSC t1
                     WHERE
-                        t1.CD_CLI_EMT = {_mci}
+                        t1.CD_CLI_EMT = :mci
                     UNION ALL
                     SELECT
                         t1.CD_CLI_EMT,
@@ -89,7 +90,7 @@ def report(_mci: int, _year: int, _month: int, _data: date) -> pd.DataFrame:
                     FROM
                         DB2AEB.PSC_TIT_MVTD t1
                     WHERE
-                        t1.CD_CLI_EMT = {_mci}
+                        t1.CD_CLI_EMT = :mci
                 ) t10
             ) t5
                 LEFT JOIN DB2MCI.CLIENTE t6
@@ -99,61 +100,45 @@ def report(_mci: int, _year: int, _month: int, _data: date) -> pd.DataFrame:
                 LEFT JOIN DB2AEB.VCL_ACNT_BLS t8
                     ON t5.CD_CLI_ACNT = t8.CD_CLI_ACNT
             WHERE
-                DATA BETWEEN {date(_year, _month, 28).strftime("%Y-%m-%d")!r} AND {_data.strftime("%Y-%m-%d")!r}
+                DATA BETWEEN :anterior AND :data
             ORDER BY
                 CAST(t5.CD_CLI_ACNT AS INTEGER),
                 DATA DESC
         """,
-        con=engine,
+        show_spinner=False,
+        ttl=60,
+        params=dict(
+            mci=_mci,
+            anterior=date(_year, _month, 28).strftime("%Y-%m-%d"),
+            data=_data.strftime("%Y-%m-%d")
+        ),
     )
     base.columns = [str(columns).upper() for columns in base.columns]
-    base["PK"] = base["MCI"].map(str) + "-" + base["COD_TITULO"].map(str) + "-" + base["CUSTODIANTE"].map(str)
-
+    base["PK"] = f"{base['MCI']}-{base['COD_TITULO']}-{base['CUSTODIANTE']}"
     base = base.groupby("PK").first()
-
     base = base[~base["MCI"].isin([205007939, 211684707]) & base["QUANTIDADE"].ne(0)]
     base["COD_TITULO"] = base["COD_TITULO"].astype(str)
     base.reset_index(drop=True, inplace=True)
 
-    dfixo = base.copy()
-    dfixo.pop("DATA")
-    dfixo.pop("TIPO")
-    dfixo.pop("COD_TITULO")
-    dfixo.pop("QUANTIDADE")
-    dfixo.pop("SIGLA")
-    dfixo.pop("CUSTODIANTE")
+    dfixo = base[["MCI", "INVESTIDOR", "CPF_CNPJ", "TIPO"]].copy()
     dfixo.drop_duplicates(subset=["MCI"], inplace=True)
 
     lista_tit = []
 
     for x in (base["COD_TITULO"] + base["SIGLA"]).unique():
-        dfx = base[(base["COD_TITULO"] + base["SIGLA"]) == x].copy()
+        dfx = base[(base["COD_TITULO"] + base["SIGLA"]).eq(x)].copy()
         dfx.reset_index(drop=True, inplace=True)
         tipo = dfx["SIGLA"][0] + dfx["COD_TITULO"].astype(str)[0]
 
-        dfbb = dfx[dfx["CUSTODIANTE"].eq("ESCRITURAL")].copy()
+        dfbb = dfx[dfx["CUSTODIANTE"].eq("ESCRITURAL")][["MCI", "QUANTIDADE"]].copy()
         dfbb.rename(columns={"QUANTIDADE": "BB_" + tipo}, inplace=True)
-        dfbb.pop("INVESTIDOR")
-        dfbb.pop("CPF_CNPJ")
-        dfbb.pop("TIPO")
-        dfbb.pop("DATA")
-        dfbb.pop("COD_TITULO")
-        dfbb.pop("SIGLA")
-        dfbb.pop("CUSTODIANTE")
 
-        dfb3 = dfx[dfx["CUSTODIANTE"].eq("CUSTÓDIA")].copy()
+        dfb3 = dfx[dfx["CUSTODIANTE"].eq("CUSTÓDIA")][["MCI", "QUANTIDADE"]].copy()
         dfb3.rename(columns={"QUANTIDADE": "B3_" + tipo}, inplace=True)
-        dfb3.pop("INVESTIDOR")
-        dfb3.pop("CPF_CNPJ")
-        dfb3.pop("TIPO")
-        dfb3.pop("DATA")
-        dfb3.pop("COD_TITULO")
-        dfb3.pop("SIGLA")
-        dfb3.pop("CUSTODIANTE")
 
-        dfx = dfbb.merge(dfb3, how="outer", on=["MCI"])
+        dfx = pd.merge(dfbb, dfb3, how="outer", on=["MCI"])
 
-        dfixo = dfixo.merge(dfx, how="left", on=["MCI"])
+        dfixo = pd.merge(dfixo, dfx, how="left", on=["MCI"])
 
         lista_tit.append(tipo)
 
@@ -165,14 +150,13 @@ def report(_mci: int, _year: int, _month: int, _data: date) -> pd.DataFrame:
         dfixo["TOTAL_" + x] = dfixo["BB_" + x] + dfixo["B3_" + x]
         cols.extend(["BB_" + x, "B3_" + x, "TOTAL_" + x])
 
-    dfixo = dfixo[cols]
-
-    return dfixo
+    return dfixo[cols]
 
 
+@st.cache_data(show_spinner="Obtendo os dados, aguarde...")
 def load_data(_mci: int) -> tuple[int, str, int, str]:
-    cadastro = pd.read_sql(
-        sql=f"""
+    cadastro = engine.query(
+        sql="""
             SELECT
                 t1.CD_CLI_EMT AS MCI,
                 STRIP(t1.SG_EMP) AS SIGLA,
@@ -183,9 +167,11 @@ def load_data(_mci: int) -> tuple[int, str, int, str]:
                 INNER JOIN DB2MCI.CLIENTE t2
                     ON t2.COD = t1.CD_CLI_EMT
             WHERE
-                t1.CD_CLI_EMT = {_mci}
+                t1.CD_CLI_EMT = :mci
         """,
-        con=engine,
+        show_spinner=False,
+        ttl=60,
+        params=dict(mci=_mci),
     )
     cadastro.columns = [str(columns).upper() for columns in cadastro.columns]
 
@@ -221,7 +207,7 @@ params = dict(type="primary", use_container_width=True)
 col = st.columns(3)
 
 if col[0].button(label="**Visualizar na tela**", key="btn_view", icon=":material/preview:", **params):
-    get_report = report(mci, year, month, hoje)
+    get_report = load_report(mci, year, month, hoje)
     if not get_report.empty:
         get_title = load_data(mci)
         st.write(f"**MCI:** {get_title[0]}")
@@ -234,11 +220,10 @@ if col[0].button(label="**Visualizar na tela**", key="btn_view", icon=":material
         st.toast(body="**Sem dados para exibir**", icon="⚠️")
 
 if col[1].button(label="**Arquivo CSV**", key="btn_csv", icon=":material/csv:", **params):
-    get_report = report(mci, year, month, hoje)
+    get_report = load_report(mci, year, month, hoje)
     if not get_report.empty:
         get_title = load_data(mci)
-        sigla = get_title[3]
-        get_report.to_csv(f"static/escriturais/@deletar/{sigla}-{hoje}.csv", index=False)
+        get_report.to_csv(f"static/escriturais/@deletar/{get_title[3]}-{hoje}.csv", index=False)
 
         st.toast(body="**Arquivo CSV enviado para a pasta específica**", icon="✔️")
     else:

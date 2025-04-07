@@ -1,20 +1,20 @@
 from datetime import date, timedelta
 
-import polars as pl
+import pandas as pd
 import streamlit as st
-from sqlalchemy import create_engine
+from streamlit.connections import SQLConnection
 
 st.cache_data.clear()
 
-engine = create_engine(st.secrets["connections"]["DB2"]["url"])
+engine = st.connection(name="DB2", type=SQLConnection)
 
 st.subheader(":material/siren: Resolução CVM 160")
 
 
 @st.cache_data(show_spinner=False)
 def load_active(active: str) -> dict[int, str]:
-    df = pl.read_database(
-        query=f"""
+    df = engine.query(
+        sql=f"""
             SELECT
                 t1.CD_CLI_EMT AS MCI,
                 t2.NOM
@@ -25,16 +25,16 @@ def load_active(active: str) -> dict[int, str]:
             WHERE
                 t1.DT_ECR_CTR IS {active}
         """,
-        connection=engine,
-        infer_schema_length=None
+        show_spinner=False,
+        ttl=60,
     )
-    return {k: v for k, v in zip(df["MCI"].to_list(), df["NOM"].to_list())}
+    return {k: v for k, v in zip(df["mci"].to_list(), df["nom"].to_list())}
 
 
 @st.cache_data(show_spinner=False)
-def report(_mci, _ano, _mes, _data) -> None:
-    base = pl.read_database(
-        query=f"""
+def report(_mci: int, _ano: int, _mes: int, _data: date) -> None:
+    base = engine.query(
+        sql="""
             SELECT
                 1 as TIPO,
                 t5.CD_CLI_ACNT AS MCI,
@@ -67,7 +67,7 @@ def report(_mci, _ano, _mes, _data) -> None:
                     FROM
                         DB2AEB.MVTC_DIAR_PSC t1
                     WHERE
-                        t1.CD_CLI_EMT = {_mci} AND
+                        t1.CD_CLI_EMT = :mci AND
                         t1.CD_CLI_CSTD = 903485186
                     UNION ALL
                     SELECT
@@ -78,7 +78,7 @@ def report(_mci, _ano, _mes, _data) -> None:
                     FROM
                         DB2AEB.PSC_TIT_MVTD t1
                     WHERE
-                        t1.CD_CLI_EMT = {_mci} AND
+                        t1.CD_CLI_EMT = :mci AND
                         t1.CD_CLI_CSTD = 903485186
                 ) 
             ) t5
@@ -87,37 +87,29 @@ def report(_mci, _ano, _mes, _data) -> None:
             LEFT JOIN DB2AEB.VCL_ACNT_BLS t8
                 ON t5.CD_CLI_ACNT = t8.CD_CLI_ACNT
             WHERE
-                DATA BETWEEN {date(_ano, _mes, 28).strftime('%Y-%m-%d')!r} AND {_data.strftime('%Y-%m-%d')!r}
+                DATA BETWEEN :anterior AND :data
             ORDER BY
                 CPF_CNPJ,
                 DATA DESC
         """,
-        connection=engine,
-        infer_schema_length=None
+        show_spinner=False,
+        ttl=60,
+        params=dict(mci=_mci, anterior=date(_ano, _mes, 28).strftime("%Y-%m-%d"), data=_data.strftime("%Y-%m-%d")),
     )
-    if base.is_empty():
+    if base.empty:
         st.toast(body="**Sem dados para exibir**", icon="⚠️")
     else:
-        base = base.with_columns(pl.lit("            ").alias("RESERVA"))
-        base = base.with_columns((base["CPF_CNPJ"].cast(pl.Utf8) + "-" + base["COD_TITULO"].cast(pl.Utf8)).alias("PK"))
-        base = base.group_by(["PK"]).agg(pl.col("*").first())
-        base = base.filter(~pl.col("CPF_CNPJ").is_in([60777661000150]) & (pl.col("CPF_CNPJ") > 0) &
-                           (pl.col("QUANTIDADE") != 0))
+        base["RESERVA"] = "            "
+        base["PK"] = f"{base['CPF_CNPJ']}-{base['COD_TITULO']}"
+        base = base.groupby(["PK"]).first()
+        base = base[~base["CPF_CNPJ"].isin(60777661000150) & base["CPF_CNPJ"].gt(0) & base["QUANTIDADE"].ne(0)]
         base = base.drop(["MCI", "DATA"])
-        base = base.with_row_index("index", offset=0)
+        base = base.reset_index(drop=True)
 
         for z in base["COD_TITULO"].unique():
-            globals()["base" + str(z)] = base.filter(pl.col("COD_TITULO") == z)
-
-            y = base.select([
-                pl.concat_str([
-                    pl.col("TIPO"),
-                    pl.col("PSS"),
-                    pl.col("CPF_CNPJ").cast(pl.Utf8).str.zfill(19),
-                    pl.col("QUANTIDADE").cast(pl.Utf8).str.zfill(17),
-                    pl.col("RESERVA")
-                ]).alias("y")
-            ])
+            globals()["base" + str(z)] = base(base["COD_TITULO"].eq(z))
+            y = (f"{base["TIPO"]}{base["PSS"]}{base["CPF_CNPJ"].astype(str).str.zfill(19)}"
+                 f"{base["QUANTIDADE"].astype(str).str.zfill(17)}{base["RESERVA"]}")
 
             filename = f"static/escriturais/@deletar/resolucao160-{_mci}-tipo{z}.txt"
 

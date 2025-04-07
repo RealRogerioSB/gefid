@@ -1,15 +1,11 @@
-import os
 from datetime import date
 
-import polars as pl
+import pandas as pd
 import streamlit as st
 import xlsxwriter
-from dotenv import load_dotenv
-from sqlalchemy import create_engine
+from streamlit.connections import SQLConnection
 
-load_dotenv()
-
-conn = create_engine(os.getenv("DB2"))
+engine = st.connection(name="DB2", type=SQLConnection)
 
 st.subheader(":material/cycle: Circular BACEN 3624")
 
@@ -20,9 +16,9 @@ st.cache_data.clear()
 
 
 @st.cache_data(show_spinner=False)
-def load_data(year: int, month: int) -> pl.DataFrame:
-    return pl.read_database(
-        query=f"""
+def load_data(year: int, month: int) -> pd.DataFrame:
+    return engine.query(
+        sql="""
             SELECT
                 t2.CD_CLSC_TIP_DRT,
                 t1.DT_DLBC,
@@ -39,23 +35,24 @@ def load_data(year: int, month: int) -> pl.DataFrame:
                     ON t2.CD_TIP_DRT = t1.CD_TIP_DRT
             WHERE
                 t1.CD_TIP_DRT IN (9) AND
-                YEAR(t1.DT_MVT_DRT) = {year} AND
-                MONTH(t1.DT_MVT_DRT) = {month} AND
+                YEAR(t1.DT_MVT_DRT) = :year AND
+                MONTH(t1.DT_MVT_DRT) = :month AND
                 t1.CD_CLI_DLBC IN (903485186) AND
                 t2.CD_CLSC_TIP_DRT IN (1, 5, 10, 14)
             ORDER BY
                 t1.DT_DLBC DESC,
                 t1.CD_TIP_DRT
         """,
-        connection=conn,
-        infer_schema_length=None
+        show_spinner=False,
+        ttl=60,
+        params=dict(year=year, month=month),
     )
 
 
 def preparo_xlsx(year: int, month: int) -> None:
     with st.spinner("Obtendo os dados, aguarde...", show_time=True):
         xlsx = load_data(year, month)
-        if xlsx.is_empty:
+        if xlsx.empty:
             st.toast(body="**Não há dados para enviar**", icon="⚠️")
         else:
             with xlsxwriter.Workbook(f"static/escriturais/@deletar/circular3624-{year}-{month}.xlsx") as wb:

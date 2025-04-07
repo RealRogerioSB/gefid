@@ -1,6 +1,6 @@
 from datetime import date
 
-import polars as pl
+import pandas as pd
 import streamlit as st
 
 st.cache_data.clear()
@@ -27,9 +27,7 @@ fundo1, fundo2 = st.tabs(["**Fundos enviados no último arquivo**", "**Fundos a 
 
 with fundo1:
     with st.spinner("Obtendo os dados, aguarde..."):
-        st.data_editor(
-            data=pl.read_csv("static/arquivos/circular3945/cadastro.csv", separator=";"),
-        )
+        st.data_editor(data=pd.read_csv("static/arquivos/circular3945/cadastro.csv", delimiter=";"))
 
 with fundo2:
     with st.spinner("Obtendo os dados, aguarde..."):

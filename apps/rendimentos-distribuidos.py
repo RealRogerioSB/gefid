@@ -1,10 +1,10 @@
 from datetime import date
 
-import polars as pl
+import pandas as pd
 import streamlit as st
-from sqlalchemy import create_engine
+from streamlit.connections import SQLConnection
 
-engine = create_engine(st.secrets["connections"]["DB2"]["url"])
+engine = st.connection(name="DB2", type=SQLConnection)
 
 st.cache_data.clear()
 
@@ -13,8 +13,8 @@ st.subheader(":material/send_money: Rendimentos Distribuídos")
 
 @st.cache_data(show_spinner="Obtendo os dados, aguarde...")
 def load_active(active: str) -> dict[int, str]:
-    df = pl.read_database(
-        query=f"""
+    df = engine.query(
+        sql=f"""
             SELECT
                 t1.CD_CLI_EMT AS MCI,
                 t2.NOM
@@ -25,16 +25,16 @@ def load_active(active: str) -> dict[int, str]:
             WHERE
                 t1.DT_ECR_CTR IS {active}
         """,
-        connection=engine,
-        infer_schema_length=None
+        show_spinner=False,
+        ttl=60,
     )
-    return {k: v for k, v in zip(df["MCI"].to_list(), df["NOM"].to_list())}
+    return {k: v for k, v in zip(df["mci"].to_list(), df["nom"].to_list())}
 
 
 @st.cache_data(show_spinner="Obtendo os dados, aguarde...")
-def load_report(_mci: int, _ano: int, _mes: int) -> pl.DataFrame:
-    return pl.read_database(
-        query=f"""
+def load_report(_mci: int, _ano: int, _mes: int) -> pd.DataFrame:
+    return engine.query(
+        sql="""
             SELECT
                 t1.CD_CLI_TITR as MCI,
                 STRIP(t2.NOM) AS INVESTIDOR,
@@ -55,23 +55,24 @@ def load_report(_mci: int, _ano: int, _mes: int) -> pl.DataFrame:
                 INNER JOIN DB2AEB.TIP_DRT t4
                     ON t4.CD_TIP_DRT = t1.CD_TIP_DRT
             WHERE
-                t1.CD_CLI_DLBC = {_mci} AND
+                t1.CD_CLI_DLBC = :mci AND
                 t1.CD_EST_DRT IN (1) AND
-                YEAR(t1.DT_MVT_DRT) = {_ano} AND
-                MONTH(t1.DT_MVT_DRT) = {_mes}
+                YEAR(t1.DT_MVT_DRT) = :ano AND
+                MONTH(t1.DT_MVT_DRT) = :mes
             ORDER BY
                 STRIP(t2.NOM),
                 t1.DT_MVT_DRT
         """,
-        connection=engine,
-        infer_schema_length=None
+        show_spinner=False,
+        ttl=60,
+        params=dict(mci=_mci, ano=_ano, mes=_mes),
     )
 
 
 @st.cache_data(show_spinner="Obtendo os dados, aguarde...")
-def load_data(_mci: int) -> pl.DataFrame:
-    return pl.read_database(
-        query=f"""
+def load_data(_mci: int) -> pd.DataFrame:
+    return engine.query(
+        sql="""
             SELECT
                 t1.CD_CLI_EMT AS MCI,
                 t1.SG_EMP AS SIGLA,
@@ -82,10 +83,11 @@ def load_data(_mci: int) -> pl.DataFrame:
                 INNER JOIN DB2MCI.CLIENTE t2
                     ON t1.CD_CLI_EMT = t2.COD
             WHERE
-                t1.CD_CLI_EMT = {_mci}
+                t1.CD_CLI_EMT = :mci
         """,
-        connection=engine,
-        infer_schema_length=None
+        show_spinner=False,
+        ttl=60,
+        params=dict(mci=_mci),
     )
 
 
@@ -110,7 +112,7 @@ col = st.columns(3)
 
 if col[0].button(label="**Visualizar na tela**", key="btn_view", icon=":material/preview:", **params):
     get_view = load_report(mci, ano, mes)
-    if not get_view.is_empty():
+    if not get_view.empty:
         get_data = load_data(mci)
         st.write(f"**MCI:** {get_data['MCI'][0]}")
         st.write(f"**EMPRESA:** {get_data['EMPRESA'][0]}")
@@ -128,7 +130,7 @@ if col[0].button(label="**Visualizar na tela**", key="btn_view", icon=":material
 
 if col[1].button(label="**Arquivo CSV**", key="btn_csv", icon=":material/csv:", **params):
     get_csv = load_report(mci, ano, mes)
-    if not get_csv.is_empty():
+    if not get_csv.empty:
         sigla = load_data(mci)["SIGLA"][0]
         get_csv.write_csv(file=f"static/escriturais/@deletar/{sigla}-{mes}-{ano}-Rendimentos Distribuídos.csv")
     else:
@@ -136,7 +138,7 @@ if col[1].button(label="**Arquivo CSV**", key="btn_csv", icon=":material/csv:", 
 
 if col[2].button(label="**Arquivo Excel**", key="btn_excel", icon=":material/format_list_numbered_rtl:", **params):
     get_xlsx = load_report(mci, ano, mes)
-    if not get_xlsx.is_empty():
+    if not get_xlsx.empty:
         sigla = load_data(mci)["SIGLA"][0]
         if len(get_xlsx) <= int(1e6):
             caminho_saida = f"static/escriturais/@deletar/{sigla}-{mes}-{ano}-Rendimentos Distribuídos.xlsx"
@@ -145,13 +147,13 @@ if col[2].button(label="**Arquivo Excel**", key="btn_excel", icon=":material/for
             st.toast(body="**Arquivo XLSX enviado para a pasta específica**", icon="✔️")
         else:
             caminho_saida_1 = f"static/escriturais/@deletar/{sigla}-{mes}-{ano}-Rendimentos Distribuidos-parte1.xlsx"
-            get_xlsx[:int(1e6)].write_excel(workbook=caminho_saida_1)
+            get_xlsx[:int(1e6)].to_excel(excel_writer=caminho_saida_1, index=False, engine="xlsxwriter")
 
             caminho_saida_2 = f"static/escriturais/@deletar/{sigla}-{mes}-{ano}-Rendimentos Distribuidos-parte2.xlsx"
-            get_xlsx[int(1e6):int(2e6)].write_excel(workbook=caminho_saida_2)
+            get_xlsx[int(1e6):int(2e6)].to_excel(excel_writer=caminho_saida_2, index=False, engine="xlsxwriter")
 
             caminho_saida_3 = f"static/escriturais/@deletar/{sigla}-{mes}-{ano}-Rendimentos Distribuidos-parte3.xlsx"
-            get_xlsx[int(2e6):].write_excel(workbook=caminho_saida_3)
+            get_xlsx[int(2e6):].to_excel(excel_writer=caminho_saida_3, index=False, engine="xlsxwriter")
 
             st.toast(body="**Mais partes de arquivos XLSX enviados para a pasta específica**", icon="✔️")
     else:
