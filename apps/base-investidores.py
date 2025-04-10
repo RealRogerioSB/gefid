@@ -25,7 +25,7 @@ def load_active(active: str) -> dict[int, str]:
             WHERE
                 t1.DT_ECR_CTR IS {active}
         """,
-        show_progress=False,
+        show_spinner=False,
         ttl=60,
     )
     return {k: v for k, v in zip(df["mci"].to_list(), df["nom"].to_list())}
@@ -53,7 +53,7 @@ def load_report(_mci: int, _year: int, _month: int, _data: date) -> pd.DataFrame
                 END AS TIPO,
                 t5.DATA,
                 t5.CD_TIP_TIT AS COD_TITULO,
-                STRIP(CONCAT(t7.SG_TIP_TIT, t7.CD_CLS_TIP_TIT)) AS SIGLA,
+                CONCAT(t7.SG_TIP_TIT, t7.CD_CLS_TIP_TIT) AS SIGLA,
                 CAST(t5.QUANTIDADE AS BIGINT) AS QUANTIDADE,
                 CASE 
                     WHEN t5.CD_CLI_CSTD = 903485186 THEN 'ESCRITURAL'
@@ -128,12 +128,13 @@ def load_report(_mci: int, _year: int, _month: int, _data: date) -> pd.DataFrame
     for x in (base["COD_TITULO"] + base["SIGLA"]).unique():
         dfx = base[(base["COD_TITULO"] + base["SIGLA"]).eq(x)].copy()
         dfx.reset_index(drop=True, inplace=True)
+
         tipo = dfx["SIGLA"][0] + dfx["COD_TITULO"].astype(str)[0]
 
-        dfbb = dfx[dfx["CUSTODIANTE"].eq("ESCRITURAL")][["MCI", "QUANTIDADE"]].copy()
+        dfbb = dfx[dfx["CUSTODIANTE"].eq("ESCRITURAL")].copy()[["MCI", "QUANTIDADE"]]
         dfbb.rename(columns={"QUANTIDADE": "BB_" + tipo}, inplace=True)
 
-        dfb3 = dfx[dfx["CUSTODIANTE"].eq("CUSTÓDIA")][["MCI", "QUANTIDADE"]].copy()
+        dfb3 = dfx[dfx["CUSTODIANTE"].eq("CUSTÓDIA")].copy()[["MCI", "QUANTIDADE"]]
         dfb3.rename(columns={"QUANTIDADE": "B3_" + tipo}, inplace=True)
 
         dfx = pd.merge(dfbb, dfb3, how="outer", on=["MCI"])
@@ -142,7 +143,7 @@ def load_report(_mci: int, _year: int, _month: int, _data: date) -> pd.DataFrame
 
         lista_tit.append(tipo)
 
-    dfixo = dfixo.fillna(0)
+    dfixo.fillna(0, inplace=True)
 
     cols = ["MCI", "INVESTIDOR", "CPF_CNPJ"]
 
@@ -150,7 +151,9 @@ def load_report(_mci: int, _year: int, _month: int, _data: date) -> pd.DataFrame
         dfixo["TOTAL_" + x] = dfixo["BB_" + x] + dfixo["B3_" + x]
         cols.extend(["BB_" + x, "B3_" + x, "TOTAL_" + x])
 
-    return dfixo[cols]
+    dfixo = dfixo[cols]
+
+    return dfixo
 
 
 @st.cache_data(show_spinner="Obtendo os dados, aguarde...")
@@ -159,7 +162,7 @@ def load_data(_mci: int) -> tuple[int, str, int, str]:
         sql="""
             SELECT
                 t1.CD_CLI_EMT AS MCI,
-                STRIP(t1.SG_EMP) AS SIGLA,
+                t1.SG_EMP AS SIGLA,
                 STRIP(t2.NOM) AS EMPRESA,
                 t2.COD_CPF_CGC AS CNPJ
             FROM
@@ -185,7 +188,7 @@ def load_data(_mci: int) -> tuple[int, str, int, str]:
 
 option_active = st.radio(label="**Situação de Clientes:**", options=["ativos", "inativos"])
 
-kv = load_active("NULL") if option_active == "ativos" else load_active("NOT NULL")
+kv = load_active("NULL" if option_active == "ativos" else "NOT NULL")
 
 empresa = st.selectbox(
     label="**Clientes ativos:**" if option_active == "ativos" else "**Clientes inativos:**",
@@ -206,30 +209,36 @@ params = dict(type="primary", use_container_width=True)
 
 col = st.columns(3)
 
-if col[0].button(label="**Visualizar na tela**", key="btn_view", icon=":material/preview:", **params):
+btn_view = col[0].button(label="**Visualizar na tela**", icon=":material/preview:", **params)
+btn_csv = col[1].button(label="**Arquivo CSV**", icon=":material/csv:", **params)
+btn_excel = col[2].button(label="**Arquivo Excel**", icon=":material/format_list_numbered_rtl:", **params)
+
+if btn_view:
     get_report = load_report(mci, year, month, hoje)
     if not get_report.empty:
         get_title = load_data(mci)
         st.write(f"**MCI:** {get_title[0]}")
         st.write(f"**Empresa:** {get_title[1]}")
-        st.write(f"**CNPJ:** {get_title[2]}")
+        st.write(f"**CNPJ:** {int(get_title[2])}")
         st.write(f"**Data:** {hoje:%d/%m/%Y}")
+
         st.dataframe(get_report, hide_index=True)
+
         st.button(label="**Voltar**", key="btn_back", type="primary")
     else:
-        st.toast(body="**Sem dados para exibir**", icon="⚠️")
+        st.toast(body="**Sem dados para exibir**", icon=":material/warning:")
 
-if col[1].button(label="**Arquivo CSV**", key="btn_csv", icon=":material/csv:", **params):
+if btn_csv:
     get_report = load_report(mci, year, month, hoje)
     if not get_report.empty:
         get_title = load_data(mci)
         get_report.to_csv(f"static/escriturais/@deletar/{get_title[3]}-{hoje}.csv", index=False)
 
-        st.toast(body="**Arquivo CSV enviado para a pasta específica**", icon="✔️")
+        st.toast(body="**Arquivo CSV enviado para a pasta específica**", icon=":material/check_circle:")
     else:
-        st.toast(body="**Sem dados para exibir**", icon="⚠️")
+        st.toast(body="**Sem dados para exibir**", icon=":material/warning:")
 
-if col[2].button(label="**Arquivo Excel**", key="btn_excel", icon=":material/format_list_numbered_rtl:", **params):
+if btn_excel:
     pass
 
 st.markdown("""

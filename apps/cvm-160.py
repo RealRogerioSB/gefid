@@ -1,6 +1,5 @@
 from datetime import date, timedelta
 
-import pandas as pd
 import streamlit as st
 from streamlit.connections import SQLConnection
 
@@ -97,30 +96,32 @@ def report(_mci: int, _ano: int, _mes: int, _data: date) -> None:
         params=dict(mci=_mci, anterior=date(_ano, _mes, 28).strftime("%Y-%m-%d"), data=_data.strftime("%Y-%m-%d")),
     )
     if base.empty:
-        st.toast(body="**Sem dados para exibir**", icon="⚠️")
+        st.toast(body="**Sem dados para exibir**", icon=":material/warning:")
     else:
+        base.columns = [str(columns).upper() for columns in base.columns]
         base["RESERVA"] = "            "
         base["PK"] = f"{base['CPF_CNPJ']}-{base['COD_TITULO']}"
         base = base.groupby(["PK"]).first()
-        base = base[~base["CPF_CNPJ"].isin(60777661000150) & base["CPF_CNPJ"].gt(0) & base["QUANTIDADE"].ne(0)]
-        base = base.drop(["MCI", "DATA"])
+        base = base[~base["CPF_CNPJ"].isin([60777661000150]) & base["CPF_CNPJ"].gt(0) & base["QUANTIDADE"].ne(0)]
+        base = base.drop(["MCI", "DATA"], axis=1)
         base = base.reset_index(drop=True)
 
         for z in base["COD_TITULO"].unique():
-            globals()["base" + str(z)] = base(base["COD_TITULO"].eq(z))
-            y = (f"{base["TIPO"]}{base["PSS"]}{base["CPF_CNPJ"].astype(str).str.zfill(19)}"
-                 f"{base["QUANTIDADE"].astype(str).str.zfill(17)}{base["RESERVA"]}")
+            globals()["base" + str(z)] = base[base["COD_TITULO"] == z]
 
-            filename = f"static/escriturais/@deletar/resolucao160-{_mci}-tipo{z}.txt"
+            y = globals()["base" + str(z)].apply(lambda x: "%s%s%s%s%s" % (
+                x["TIPO"], x["PSS"], str(x["CPF_CNPJ"]).zfill(19), str(x["QUANTIDADE"]).zfill(17), x["RESERVA"]),
+                                                   axis=1)
 
-            y.write_csv(filename, separator=".", include_header=False)
+            y.to_csv(f"static/escriturais/@deletar/resolucao160-{empresa}-tipo{z}.txt",
+                     sep='.', header=False, index=False)
 
-            trailer = f"9 {str((len(y) + 1)).zfill(19)}{str(base['QUANTIDADE'].sum()).zfill(17)}            "
+            trailer = f"9 {str(len(y.index) + 1).zfill(19)}{str(base['QUANTIDADE'].sum()).zfill(17)}            "
 
-            with open(filename, "a") as f:
+            with open(f"static/escriturais/@deletar/resolucao160-{empresa}-tipo{z}.txt", "a") as f:
                 f.write(trailer)
 
-        st.toast(body="**Criação de TXT feita com sucesso**", icon="ℹ️")
+        st.toast(body="**Criação de TXT feita com sucesso**", icon=":material/info:")
 
 
 option_active = st.radio(label="**Situação de Clientes:**", options=["ativos", "inativos"])

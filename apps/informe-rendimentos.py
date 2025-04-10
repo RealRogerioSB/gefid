@@ -21,7 +21,7 @@ params_columns = dict(
 
 
 @st.cache_data(show_spinner=False)
-def get_join_email(field, value):
+def get_join_email(field: str, value: int | str) -> pd.DataFrame:
     return engine.query(
         sql="""
             SELECT DISTINCT
@@ -45,7 +45,7 @@ def get_join_email(field, value):
 
 
 @st.cache_data(show_spinner=False)
-def get_email(field, value):
+def get_email(field: str, value: int | str) -> pd.DataFrame:
     return engine.query(
         sql="""
             SELECT DISTINCT
@@ -64,7 +64,7 @@ def get_email(field, value):
 
 
 @st.cache_data(show_spinner=False)
-def get_bb(field, value):
+def get_bb(field: str, value: int | str) -> pd.DataFrame:
     return engine.query(
         sql=("SELECT * FROM DB2I13E5.IR2025_CADASTRO_BB WHERE {0} = {1}"
              .format(field.upper(), value if value.isdigit() else repr(value))),
@@ -74,7 +74,7 @@ def get_bb(field, value):
 
 
 @st.cache_data(show_spinner=False)
-def get_b3(field, value):
+def get_b3(field: str, value: int | str) -> pd.DataFrame:
     return engine.query(
         sql=("SELECT * FROM DB2I13E5.IR2025_CADASTRO_B3 WHERE {0} = {1}"
              .format(field.upper(), value if value.isdigit() else repr(value))),
@@ -119,7 +119,8 @@ with st.container(border=True):
     if st.button(label="**Pesquisar**", key="btn_search", type="primary"):
         with st.spinner(text="Obtendo os dados, aguarde...", show_time=True):
             if not any([tx_nome, tx_mci, tx_cpf_cnpj, tx_email]):
-                st.toast("**Precisa digitar qualquer um campo para pesquisar, pelo menos...**", icon="⚠️")
+                st.toast("**Precisa digitar qualquer um campo para pesquisar, pelo menos...**",
+                         icon=":material/warning:")
 
             elif tx_nome != "":
                 report(
@@ -136,7 +137,7 @@ with st.container(border=True):
                         get_b3("mci_investidor", re.sub(r"\D", "", tx_mci))
                     )
                 else:
-                    st.toast("**O campo MCI está inválido...**", icon="⚠️")
+                    st.toast("**O campo MCI está inválido...**", icon=":material/warning:")
 
             elif tx_cpf_cnpj != "":
                 if re.sub(r"\D", "", tx_cpf_cnpj):
@@ -146,7 +147,7 @@ with st.container(border=True):
                         get_b3("cpf_cnpj", re.sub("\D", "", tx_cpf_cnpj))
                     )
                 else:
-                    st.toast("**O Campo CPF / CNPJ está inválido...**", icon="⚠️")
+                    st.toast("**O Campo CPF / CNPJ está inválido...**", icon=":material/warning:")
 
             elif tx_email != "":
                 report(

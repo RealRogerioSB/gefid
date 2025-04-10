@@ -53,7 +53,7 @@ def preparo_xlsx(year: int, month: int) -> None:
     with st.spinner("Obtendo os dados, aguarde...", show_time=True):
         xlsx = load_data(year, month)
         if xlsx.empty:
-            st.toast(body="**Não há dados para enviar**", icon="⚠️")
+            st.toast(body="**Não há dados para enviar**", icon=":material/warning:")
         else:
             with xlsxwriter.Workbook(f"static/escriturais/@deletar/circular3624-{year}-{month}.xlsx") as wb:
                 ws = wb.add_worksheet(f"{year}{month:02d}")
@@ -320,7 +320,7 @@ if st.columns(7)[0].button("**ENVIAR**", type="primary", use_container_width=Tru
     if all([para, cc]):
         preparo_xlsx(ano, mes)
     else:
-        st.toast("**Ambos PARA: e CC: precisam ser preenchidos**", icon="⚠️")
+        st.toast("**Ambos PARA: e CC: precisam ser preenchidos**", icon=":material/warning:")
 
 st.markdown("""
 <style>

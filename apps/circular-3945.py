@@ -50,19 +50,17 @@ with st.spinner(text="Obtendo os dados, aguarde...", show_time=True):
         },
     )
 
-st.button(label="**Enviar**", type="primary")
+if st.button(label="**Enviar**", type="primary"):
+    # st.session_state["editor"].to_csv("static/arquivos/circular3945/cadastro2.csv", index=False)
+    st.toast("**A planilha foi enviada**", icon=":material/task_alt:")
 
 if st.button("**Atualizou?**", type="primary"):
     if not st.session_state["editor"].equals(data):
-        # frame.to_csv("static/arquivos/circular3945/cadastro2.csv", index=False)
-        st.toast("**:material/edit_square: A planilha foi atualizada**")
+        st.toast("**A planilha foi atualizada**", icon=":material/edit_square:")
     else:
-        st.toast("**:material/edit_square: A planilha ainda não foi atualizada**")
+        st.toast("**A planilha ainda não foi atualizada**", icon=":material/edit_square:")
 
-if st.button("**Deseja Reverter?**", type="primary"):
-    if not st.session_state["editor"].equals(data):
-        st.session_state["editor"] = data.copy()
-        st.toast("**:material/edit_square: A planilha foi atualizada em um arquivo**")
-        st.rerun()
-    else:
-        st.toast("**:material/edit_square: A planilha ainda não foi atualizada**")
+if st.button(label="**Reverter**", type="primary"):
+    st.session_state["editor"] = data.copy()
+    st.toast("**A planilha foi restaurada**", icon=":material/check_circle:")
+    st.rerun()
