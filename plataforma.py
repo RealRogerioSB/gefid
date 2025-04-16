@@ -8,6 +8,14 @@ st.set_page_config(
 
 st.logo(image="img/bb_png.png", size="large", link="https://gefid-aplic-1.intranet.bb.com.br/")
 
+st.markdown(
+    body="""<style>
+        [data-testid='stHeader'] {display: none;}
+        #MainMenu {visibility: hidden} footer {visibility: hidden}
+    </style>""",
+    unsafe_allow_html=True
+)
+
 st.navigation(
     pages={
         "Home": [
@@ -46,17 +54,3 @@ st.navigation(
     },
     expanded=True
 ).run()
-
-st.sidebar.markdown("[:material/account_balance: Intranet BB](https://intranet.bb.com.br)")
-
-st.sidebar.markdown("[:material/account_balance: Portal Diope](https://portal.diope.bb.com.br)")
-
-st.sidebar.markdown("[:material/account_balance: Portal Gefid](https://gefid-aplic-1intranet.bb.com.br)")
-
-st.markdown(
-    body="""<style>
-        [data-testid='stHeader'] {display: none;}
-        #MainMenu {visibility: hidden} footer {visibility: hidden}
-    </style>""",
-    unsafe_allow_html=True
-)
