@@ -7,6 +7,13 @@ from streamlit.connections import SQLConnection
 
 engine = st.connection(name="DB2", type=SQLConnection)
 
+st.markdown("""
+<style>
+    [data-testid='stHeader'] {display: none;}
+    #MainMenu {visibility: hidden} footer {visibility: hidden}
+</style>
+""", unsafe_allow_html=True)
+
 st.subheader(":material/cycle: Circular BACEN 3624")
 
 st.markdown("#### Envio de arquivo à COGER, com a informação dos rendimentos pagos aos acionistas do Banco do Brasil, "
@@ -321,10 +328,3 @@ if st.columns(7)[0].button("**ENVIAR**", type="primary", use_container_width=Tru
         preparo_xlsx(ano, mes)
     else:
         st.toast("**Ambos PARA: e CC: precisam ser preenchidos**", icon=":material/warning:")
-
-st.markdown("""
-<style>
-    [data-testid='stHeader'] {display: none;}
-    #MainMenu {visibility: hidden} footer {visibility: hidden}
-</style>
-""", unsafe_allow_html=True)
