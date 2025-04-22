@@ -14,6 +14,13 @@ st.cache_data.clear()
 
 engine = st.connection(name="DB2", type=SQLConnection)
 
+st.markdown("""
+<style>
+    [data-testid='stHeader'] {display: none;}
+    #MainMenu {visibility: hidden} footer {visibility: hidden}
+</style>
+""", unsafe_allow_html=True)
+
 st.subheader(":material/siren: Resolução CVM 160")
 
 

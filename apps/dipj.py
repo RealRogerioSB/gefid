@@ -16,6 +16,13 @@ st.cache_data.clear()
 
 engine = st.connection("DB2", type=SQLConnection)
 
+st.markdown("""
+<style>
+    [data-testid='stHeader'] {display: none;}
+    #MainMenu {visibility: hidden} footer {visibility: hidden}
+</style>
+""", unsafe_allow_html=True)
+
 st.subheader(":material/dynamic_form: DIPJ")
 
 st.markdown("##### Devem ser colocados 12 arquivos 064B da mesma empresa na pasta P:\MER\Acoes_Escriturais\@deletar\, "

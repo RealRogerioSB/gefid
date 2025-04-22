@@ -4,13 +4,6 @@ import pandas as pd
 import streamlit as st
 import xlsxwriter
 
-st.markdown("""
-<style>
-    [data-testid='stHeader'] {display: none;}
-    MainMenu {visibility: hidden} footer {visibility: hidden}
-</style>
-""", unsafe_allow_html=True)
-
 st.subheader(":material/diversity_3: EDIV")
 st.markdown("#### Separação do EDIV por processos")
 
@@ -184,3 +177,10 @@ if st.button(label="**:material/content_cut: Separar Processos**", type="primary
             workbook.close()
     else:
         st.toast("**:material/warning: Precisa de 2 arquivos para importar...**")
+
+st.markdown("""
+<style>
+    [data-testid='stHeader'] {display: none;}
+    MainMenu {visibility: hidden} footer {visibility: hidden}
+</style>
+""", unsafe_allow_html=True)

@@ -15,6 +15,13 @@ engine = st.connection(name="DB2", type=SQLConnection)
 
 st.cache_data.clear()
 
+st.markdown("""
+<style>
+    [data-testid='stHeader'] {display: none;}
+    #MainMenu {visibility: hidden} footer {visibility: hidden}
+</style>
+""", unsafe_allow_html=True)
+
 st.subheader(":material/send_money: Rendimentos Distribuídos")
 
 
@@ -155,7 +162,7 @@ if btn_excel:
             caminho_saida = f"static/escriturais/@deletar/{sigla}-{mes}-{ano}-Rendimentos Distribuídos.xlsx"
             get_xlsx.write_excel(workbook=caminho_saida)
 
-            st.toast(body="**Arquivo XLSX enviado para a pasta específica**", icon="✔️")
+            st.toast(body="**Arquivo XLSX enviado para a pasta específica**", icon=":material/check_circle:")
         else:
             caminho_saida_1 = f"static/escriturais/@deletar/{sigla}-{mes}-{ano}-Rendimentos Distribuidos-parte1.xlsx"
             get_xlsx[:int(1e6)].to_excel(excel_writer=caminho_saida_1, index=False, engine="xlsxwriter")

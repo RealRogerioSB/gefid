@@ -16,6 +16,14 @@ st.set_page_config(
 
 st.logo(image="img/bb_png.png", size="large", link="https://gefid-aplic-1.intranet.bb.com.br/")
 
+st.markdown(
+    body="""<style>
+        [data-testid='stHeader'] {display: none;}
+        #MainMenu {visibility: hidden} footer {visibility: hidden}
+    </style>""",
+    unsafe_allow_html=True
+)
+
 st.navigation(
     pages={
         "Home": [
