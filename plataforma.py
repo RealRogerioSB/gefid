@@ -1,5 +1,13 @@
 import streamlit as st
 
+st.markdown(
+    body="""<style>
+        [data-testid='stHeader'] {display: none;}
+        #MainMenu {visibility: hidden} footer {visibility: hidden}
+    </style>""",
+    unsafe_allow_html=True
+)
+
 st.set_page_config(
     page_title="Intranet DIOPE GEFID",
     page_icon="img/bbfav.svg",
@@ -46,17 +54,3 @@ st.navigation(
     },
     expanded=True
 ).run()
-
-st.sidebar.markdown("[:material/account_balance: Intranet BB](https://intranet.bb.com.br)")
-
-st.sidebar.markdown("[:material/account_balance: Portal Diope](https://portal.diope.bb.com.br)")
-
-st.sidebar.markdown("[:material/account_balance: Portal Gefid](https://gefid-aplic-1intranet.bb.com.br)")
-
-st.markdown(
-    body="""<style>
-        [data-testid='stHeader'] {display: none;}
-        #MainMenu {visibility: hidden} footer {visibility: hidden}
-    </style>""",
-    unsafe_allow_html=True
-)

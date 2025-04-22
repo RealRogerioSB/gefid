@@ -3,6 +3,13 @@ from datetime import date
 import pandas as pd
 import streamlit as st
 
+st.markdown("""
+<style>
+    [data-testid='stHeader'] {display: none;}
+    #MainMenu {visibility: hidden} footer {visibility: hidden}
+</style>
+""", unsafe_allow_html=True)
+
 data = pd.read_csv("static/arquivos/circular3945/cadastro.csv", delimiter=";")
 
 if "editor" not in st.session_state:

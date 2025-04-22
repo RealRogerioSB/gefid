@@ -2,6 +2,13 @@ import pandas as pd
 import streamlit as st
 from streamlit.connections import SQLConnection
 
+st.markdown("""
+<style>
+    [data-testid='stHeader'] {display: none;}
+    #MainMenu {visibility: hidden} footer {visibility: hidden}
+</style>
+""", unsafe_allow_html=True)
+
 engine = st.connection(name="DB2", type=SQLConnection)
 
 st.cache_data.clear()
@@ -154,10 +161,3 @@ if btn_excel:
                      icon=":material/check_circle:")
     else:
         st.toast(body="**Sem dados para exibir**", icon=":material/warning:")
-
-st.markdown("""
-<style>
-    [data-testid='stHeader'] {display: none;}
-    #MainMenu {visibility: hidden} footer {visibility: hidden}
-</style>
-""", unsafe_allow_html=True)

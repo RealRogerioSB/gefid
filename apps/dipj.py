@@ -5,6 +5,13 @@ import streamlit as st
 import xlsxwriter
 from streamlit.connections import SQLConnection
 
+st.markdown("""
+<style>
+    [data-testid='stHeader'] {display: none;}
+    #MainMenu {visibility: hidden} footer {visibility: hidden}
+</style>
+""", unsafe_allow_html=True)
+
 st.cache_data.clear()
 
 engine = st.connection("DB2", type=SQLConnection)
@@ -405,10 +412,3 @@ if st.button("**Gerar DIPJ**", type="primary"):
         ws.freeze_panes(4, 0)
         
         workbook.close()
-
-st.markdown("""
-<style>
-    [data-testid='stHeader'] {display: none;}
-    #MainMenu {visibility: hidden} footer {visibility: hidden}
-</style>
-""", unsafe_allow_html=True)

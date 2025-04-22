@@ -4,6 +4,13 @@ import pandas as pd
 import streamlit as st
 from streamlit.connections import SQLConnection
 
+st.markdown("""
+<style>
+    [data-testid='stHeader'] {display: none;}
+    #MainMenu {visibility: hidden} footer {visibility: hidden}
+</style>
+""", unsafe_allow_html=True)
+
 st.cache_data.clear()
 
 engine = st.connection(name="DB2", type=SQLConnection)
@@ -240,10 +247,3 @@ if btn_csv:
 
 if btn_excel:
     pass
-
-st.markdown("""
-<style>
-    [data-testid='stHeader'] {display: none;}
-    #MainMenu {visibility: hidden} footer {visibility: hidden}
-</style>
-""", unsafe_allow_html=True)

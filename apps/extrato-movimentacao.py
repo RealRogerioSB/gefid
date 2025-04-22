@@ -3,6 +3,13 @@ import streamlit as st
 from streamlit.connections import SQLConnection
 from unidecode import unidecode
 
+st.markdown("""
+<style>
+    [data-testid='stHeader'] {display: none;}
+    #MainMenu {visibility: hidden} footer {visibility: hidden}
+</style>
+""", unsafe_allow_html=True)
+
 engine = st.connection(name="DB2", type=SQLConnection)
 
 st.subheader(":material/wysiwyg: Extrato de Movimentação")
@@ -135,10 +142,3 @@ if st.button("**Pesquisar**", icon=":material/search:", type="primary"):
         st.text_input(label="**CPF/CNPJ do Investidor:**", value="cpf_cnpj_investidor")
 
     st.button("**Voltar**", type="primary")
-
-st.markdown("""
-<style>
-    [data-testid='stHeader'] {display: none;}
-    #MainMenu {visibility: hidden} footer {visibility: hidden}
-</style>
-""", unsafe_allow_html=True)

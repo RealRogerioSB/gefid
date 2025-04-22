@@ -5,6 +5,13 @@ import streamlit as st
 import xlsxwriter
 from streamlit.connections import SQLConnection
 
+st.markdown("""
+<style>
+    [data-testid='stHeader'] {display: none;}
+    #MainMenu {visibility: hidden} footer {visibility: hidden}
+</style>
+""", unsafe_allow_html=True)
+
 engine = st.connection(name="DB2", type=SQLConnection)
 
 st.subheader(":material/cycle: Circular BACEN 3624")
@@ -321,10 +328,3 @@ if st.columns(7)[0].button("**ENVIAR**", type="primary", use_container_width=Tru
         preparo_xlsx(ano, mes)
     else:
         st.toast("**Ambos PARA: e CC: precisam ser preenchidos**", icon=":material/warning:")
-
-st.markdown("""
-<style>
-    [data-testid='stHeader'] {display: none;}
-    #MainMenu {visibility: hidden} footer {visibility: hidden}
-</style>
-""", unsafe_allow_html=True)

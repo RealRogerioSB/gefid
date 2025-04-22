@@ -3,6 +3,13 @@ from datetime import date, timedelta
 import streamlit as st
 from streamlit.connections import SQLConnection
 
+st.markdown("""
+<style>
+    [data-testid='stHeader'] {display: none;}
+    #MainMenu {visibility: hidden} footer {visibility: hidden}
+</style>
+""", unsafe_allow_html=True)
+
 st.cache_data.clear()
 
 engine = st.connection(name="DB2", type=SQLConnection)
@@ -144,10 +151,3 @@ mes = 12 if data.month == 1 else data.month - 1
 if st.button(label="**Enviar TXT**", key="btn_send_csv", icon=":material/edit_note:", type="primary"):
     with st.spinner(text="Obtendo os dados, aguarde...", show_time=True):
         report(mci, ano, mes, data)
-
-st.markdown("""
-<style>
-    [data-testid='stHeader'] {display: none;}
-    #MainMenu {visibility: hidden} footer {visibility: hidden}
-</style>
-""", unsafe_allow_html=True)
