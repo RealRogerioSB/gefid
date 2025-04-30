@@ -3,13 +3,6 @@ from datetime import date, timedelta
 import streamlit as st
 from streamlit.connections import SQLConnection
 
-st.markdown("""
-<style>
-    [data-testid='stHeader'] {display: none;}
-    #MainMenu {visibility: hidden} footer {visibility: hidden}
-</style>
-""", unsafe_allow_html=True)
-
 st.cache_data.clear()
 
 engine = st.connection(name="DB2", type=SQLConnection)
@@ -112,25 +105,24 @@ def report(_mci: int, _ano: int, _mes: int, _data: date) -> None:
     if base.empty:
         st.toast(body="**Sem dados para exibir**", icon=":material/warning:")
     else:
-        base.columns = [str(columns).upper() for columns in base.columns]
-        base["RESERVA"] = "            "
-        base["PK"] = f"{base['CPF_CNPJ']}-{base['COD_TITULO']}"
-        base = base.groupby(["PK"]).first()
-        base = base[~base["CPF_CNPJ"].isin([60777661000150]) & base["CPF_CNPJ"].gt(0) & base["QUANTIDADE"].ne(0)]
-        base = base.drop(["MCI", "DATA"], axis=1)
+        base["reserva"] = "            "
+        base["pk"] = f"{base['cpf_cnpj']}-{base['cod_titulo']}"
+        base = base.groupby(["pk"]).first()
+        base = base[~base["cpf_cnpj"].isin([60777661000150]) & base["cpf_cnpj"].gt(0) & base["quantidade"].ne(0)]
+        base = base.drop(["mci", "DATA"], axis=1)
         base = base.reset_index(drop=True)
 
-        for z in base["COD_TITULO"].unique():
-            globals()["base" + str(z)] = base[base["COD_TITULO"] == z]
+        for z in base["cod_titulo"].unique():
+            globals()["base" + str(z)] = base[base["cod_titulo"].eq(z)]
 
             y = globals()["base" + str(z)].apply(lambda x: "%s%s%s%s%s" % (
-                x["TIPO"], x["PSS"], str(x["CPF_CNPJ"]).zfill(19), str(x["QUANTIDADE"]).zfill(17), x["RESERVA"]),
+                x["tipo"], x["pss"], str(x["cpf_cnpj"]).zfill(19), str(x["quantidade"]).zfill(17), x["reserva"]),
                                                    axis=1)
 
             y.to_csv(f"static/escriturais/@deletar/resolucao160-{empresa}-tipo{z}.txt",
                      sep='.', header=False, index=False)
 
-            trailer = f"9 {str(len(y.index) + 1).zfill(19)}{str(base['QUANTIDADE'].sum()).zfill(17)}            "
+            trailer = f"9 {str(len(y.index) + 1).zfill(19)}{str(base['quantidade'].sum()).zfill(17)}            "
 
             with open(f"static/escriturais/@deletar/resolucao160-{empresa}-tipo{z}.txt", "a") as f:
                 f.write(trailer)
@@ -138,23 +130,25 @@ def report(_mci: int, _ano: int, _mes: int, _data: date) -> None:
         st.toast(body="**Criação de TXT feita com sucesso**", icon=":material/info:")
 
 
-option_active = st.radio(label="**Situação de Clientes:**", options=["ativos", "inativos"])
+with st.columns(2)[0]:
+    option_active = st.radio(label="**Situação de Clientes:**", options=["ativos", "inativos"])
 
-kv = load_active("NULL") if option_active == "ativos" else load_active("NOT NULL")
+    kv = load_active("NULL") if option_active == "ativos" else load_active("NOT NULL")
 
-empresa = st.selectbox(
-    label="**Clientes ativos:**" if option_active == "ativos" else "**Clientes inativos:**",
-    options=sorted(kv.values()),
-)
+    empresa = st.selectbox(
+        label="**Clientes ativos:**" if option_active == "ativos" else "**Clientes inativos:**",
+        options=sorted(kv.values()),
+    )
 
-mci = next((chave for chave, valor in kv.items() if valor == empresa), 0)
+    mci = next((chave for chave, valor in kv.items() if valor == empresa), 0)
 
-col = st.columns(3)
-data = col[0].date_input(label="**Data:**", value=date.today().replace(day=1) - timedelta(days=1), format="DD/MM/YYYY")
+    col = st.columns(3)
+    data = col[0].date_input(label="**Data:**", value=date.today().replace(day=1) - timedelta(days=1),
+                             format="DD/MM/YYYY")
 
-ano = data.year - 1 if data.month == 1 else data.year
-mes = 12 if data.month == 1 else data.month - 1
+    ano = data.year - 1 if data.month == 1 else data.year
+    mes = 12 if data.month == 1 else data.month - 1
 
-if st.button(label="**Enviar TXT**", key="btn_send_csv", icon=":material/edit_note:", type="primary"):
-    with st.spinner(text="Obtendo os dados, aguarde...", show_time=True):
-        report(mci, ano, mes, data)
+    if st.button(label="**Enviar TXT**", key="btn_send_csv", icon=":material/edit_note:", type="primary"):
+        with st.spinner(text="**:material/hourglass: Obtendo os dados, aguarde...**", show_time=True):
+            report(mci, ano, mes, data)

@@ -5,13 +5,6 @@ import streamlit as st
 import xlsxwriter
 from streamlit.connections import SQLConnection
 
-st.markdown("""
-<style>
-    [data-testid='stHeader'] {display: none;}
-    #MainMenu {visibility: hidden} footer {visibility: hidden}
-</style>
-""", unsafe_allow_html=True)
-
 engine = st.connection(name="DB2", type=SQLConnection)
 
 st.markdown("""
@@ -23,8 +16,8 @@ st.markdown("""
 
 st.subheader(":material/cycle: Circular BACEN 3624")
 
-st.markdown("#### Envio de arquivo à COGER, com a informação dos rendimentos pagos aos acionistas do Banco do Brasil, "
-            "para atender Carta Circular 3624 do Banco Central")
+st.columns([3, 1])[0].markdown("#### Envio de arquivo à COGER, com a informação dos rendimentos pagos aos acionistas "
+                               "do Banco do Brasil, para atender Carta Circular 3624 do Banco Central")
 
 st.cache_data.clear()
 
@@ -33,30 +26,26 @@ st.cache_data.clear()
 def load_data(year: int, month: int) -> pd.DataFrame:
     return engine.query(
         sql="""
-            SELECT
-                t2.CD_CLSC_TIP_DRT,
-                t1.DT_DLBC,
-                YEAR(t1.DT_DLBC) AS ANO_DELIB,
-                t1.VL_MVT_REN,
-                t1.VL_IR_CLCD_MVT_REN,
-                t1.VL_MVT_REN - t1.VL_IR_CLCD_MVT_REN AS LIQUIDO_PRINCIPAL,
-                t1.VL_CORR_MVT_REN,
-                t1.VL_IR_CORR_MVT_REN,
-                t1.VL_IR_CORR_MVT_REN - t1.VL_IR_CORR_MVT_REN AS LIQUIDO_CORR
-            FROM
-                DB2AEB.MVT_REN t1
-                INNER JOIN DB2AEB.TIP_DRT t2
-                    ON t2.CD_TIP_DRT = t1.CD_TIP_DRT
-            WHERE
-                t1.CD_TIP_DRT IN (9) AND
-                YEAR(t1.DT_MVT_DRT) = :year AND
-                MONTH(t1.DT_MVT_DRT) = :month AND
-                t1.CD_CLI_DLBC IN (903485186) AND
-                t2.CD_CLSC_TIP_DRT IN (1, 5, 10, 14)
-            ORDER BY
-                t1.DT_DLBC DESC,
-                t1.CD_TIP_DRT
-        """,
+            SELECT t2.CD_CLSC_TIP_DRT,
+                   t1.DT_DLBC,
+                   YEAR(t1.DT_DLBC) AS ANO_DELIB,
+                   t1.VL_MVT_REN,
+                   t1.VL_IR_CLCD_MVT_REN,
+                   t1.VL_MVT_REN - t1.VL_IR_CLCD_MVT_REN AS LIQUIDO_PRINCIPAL,
+                   t1.VL_CORR_MVT_REN,
+                   t1.VL_IR_CORR_MVT_REN,
+                   t1.VL_IR_CORR_MVT_REN - t1.VL_IR_CORR_MVT_REN AS LIQUIDO_CORR
+            FROM DB2AEB.MVT_REN t1
+                     INNER JOIN DB2AEB.TIP_DRT t2
+                                ON t2.CD_TIP_DRT = t1.CD_TIP_DRT
+            WHERE t1.CD_TIP_DRT IN (9)
+              AND YEAR(t1.DT_MVT_DRT) = :year
+              AND MONTH(t1.DT_MVT_DRT) = :month
+              AND t1.CD_CLI_DLBC IN (903485186)
+              AND t2.CD_CLSC_TIP_DRT IN (1, 5, 10, 14)
+            ORDER BY t1.DT_DLBC DESC,
+                     t1.CD_TIP_DRT
+            """,
         show_spinner=False,
         ttl=60,
         params=dict(year=year, month=month),
@@ -64,7 +53,7 @@ def load_data(year: int, month: int) -> pd.DataFrame:
 
 
 def preparo_xlsx(year: int, month: int) -> None:
-    with st.spinner("Obtendo os dados, aguarde...", show_time=True):
+    with st.spinner(":material/hourglass: Obtendo os dados, aguarde...", show_time=True):
         xlsx = load_data(year, month)
         if xlsx.empty:
             st.toast(body="**Não há dados para enviar**", icon=":material/warning:")
@@ -82,191 +71,201 @@ def preparo_xlsx(year: int, month: int) -> None:
                 txt_format2 = wb.add_format(dict(align="center", bg_color="bfbfbf", border=2, bold=True))
 
                 bruto_div_ano_corrente = (
-                    float(xlsx.filter(
-                        (xlsx['ANO_DELIB'] == year) & ((xlsx['CD_CLSC_TIP_DRT'] == 1) | (xlsx['CD_CLSC_TIP_DRT'] == 14))
-                    )['VL_MVT_REN'].sum()) +
-                    float(xlsx.filter(
-                        (xlsx['ANO_DELIB'] == year) & ((xlsx['CD_CLSC_TIP_DRT'] == 1) | (xlsx['CD_CLSC_TIP_DRT'] == 14))
-                    )['VL_CORR_MVT_REN'].sum())
+                        float(xlsx.filter(
+                            (xlsx['ANO_DELIB'] == year) & (
+                                    (xlsx['CD_CLSC_TIP_DRT'] == 1) | (xlsx['CD_CLSC_TIP_DRT'] == 14))
+                        )['VL_MVT_REN'].sum()) +
+                        float(xlsx.filter(
+                            (xlsx['ANO_DELIB'] == year) & (
+                                    (xlsx['CD_CLSC_TIP_DRT'] == 1) | (xlsx['CD_CLSC_TIP_DRT'] == 14))
+                        )['VL_CORR_MVT_REN'].sum())
                 )
 
                 ir_div_ano_corrente = (
-                    float(xlsx.filter(
-                        (xlsx['ANO_DELIB'] == year) & ((xlsx['CD_CLSC_TIP_DRT'] == 1) | (xlsx['CD_CLSC_TIP_DRT'] == 14))
-                    )['VL_IR_CLCD_MVT_REN'].sum()) +
-                    float(xlsx.filter(
-                        (xlsx['ANO_DELIB'] == year) & ((xlsx['CD_CLSC_TIP_DRT'] == 1) | (xlsx['CD_CLSC_TIP_DRT'] == 14))
-                    )['VL_IR_CORR_MVT_REN'].sum())
+                        float(xlsx.filter(
+                            (xlsx['ANO_DELIB'] == year) & (
+                                    (xlsx['CD_CLSC_TIP_DRT'] == 1) | (xlsx['CD_CLSC_TIP_DRT'] == 14))
+                        )['VL_IR_CLCD_MVT_REN'].sum()) +
+                        float(xlsx.filter(
+                            (xlsx['ANO_DELIB'] == year) & (
+                                    (xlsx['CD_CLSC_TIP_DRT'] == 1) | (xlsx['CD_CLSC_TIP_DRT'] == 14))
+                        )['VL_IR_CORR_MVT_REN'].sum())
                 )
 
                 liquido_div_ano_corrente = (
-                    float(xlsx.filter(
-                        (xlsx['ANO_DELIB'] == year) & ((xlsx['CD_CLSC_TIP_DRT'] == 1) | (xlsx['CD_CLSC_TIP_DRT'] == 14))
-                    )['LIQUIDO_PRINCIPAL'].sum()) +
-                    float(xlsx.filter(
-                        (xlsx['ANO_DELIB'] == year) & ((xlsx['CD_CLSC_TIP_DRT'] == 1) | (xlsx['CD_CLSC_TIP_DRT'] == 14))
-                    )['LIQUIDO_CORR'].sum())
+                        float(xlsx.filter(
+                            (xlsx['ANO_DELIB'] == year) & (
+                                    (xlsx['CD_CLSC_TIP_DRT'] == 1) | (xlsx['CD_CLSC_TIP_DRT'] == 14))
+                        )['LIQUIDO_PRINCIPAL'].sum()) +
+                        float(xlsx.filter(
+                            (xlsx['ANO_DELIB'] == year) & (
+                                    (xlsx['CD_CLSC_TIP_DRT'] == 1) | (xlsx['CD_CLSC_TIP_DRT'] == 14))
+                        )['LIQUIDO_CORR'].sum())
                 )
 
                 bruto_div_ano_antes = (
-                    float(xlsx.filter(
-                        (xlsx['ANO_DELIB'] == year - 1) & (
+                        float(xlsx.filter(
+                            (xlsx['ANO_DELIB'] == year - 1) & (
                                     (xlsx['CD_CLSC_TIP_DRT'] == 1) | (xlsx['CD_CLSC_TIP_DRT'] == 14))
-                    )['VL_MVT_REN'].sum()) +
-                    float(xlsx.filter(
-                        (xlsx['ANO_DELIB'] == year - 1) & (
+                        )['VL_MVT_REN'].sum()) +
+                        float(xlsx.filter(
+                            (xlsx['ANO_DELIB'] == year - 1) & (
                                     (xlsx['CD_CLSC_TIP_DRT'] == 1) | (xlsx['CD_CLSC_TIP_DRT'] == 14))
-                    )['VL_CORR_MVT_REN'].sum())
+                        )['VL_CORR_MVT_REN'].sum())
                 )
 
                 ir_div_ano_antes = (
-                    float(xlsx.filter(
-                        (xlsx['ANO_DELIB'] == year - 1) & (
+                        float(xlsx.filter(
+                            (xlsx['ANO_DELIB'] == year - 1) & (
                                     (xlsx['CD_CLSC_TIP_DRT'] == 1) | (xlsx['CD_CLSC_TIP_DRT'] == 14))
-                    )['VL_IR_CLCD_MVT_REN'].sum()) +
-                    float(xlsx.filter(
-                        (xlsx['ANO_DELIB'] == year - 1) & (
+                        )['VL_IR_CLCD_MVT_REN'].sum()) +
+                        float(xlsx.filter(
+                            (xlsx['ANO_DELIB'] == year - 1) & (
                                     (xlsx['CD_CLSC_TIP_DRT'] == 1) | (xlsx['CD_CLSC_TIP_DRT'] == 14))
-                    )['VL_IR_CORR_MVT_REN'].sum())
+                        )['VL_IR_CORR_MVT_REN'].sum())
                 )
 
                 liquido_div_ano_antes = (
-                    float(xlsx.filter(
-                        (xlsx['ANO_DELIB'] == year - 1) & (
+                        float(xlsx.filter(
+                            (xlsx['ANO_DELIB'] == year - 1) & (
                                     (xlsx['CD_CLSC_TIP_DRT'] == 1) | (xlsx['CD_CLSC_TIP_DRT'] == 14))
-                    )['LIQUIDO_PRINCIPAL'].sum()) +
-                    float(xlsx.filter(
-                        (xlsx['ANO_DELIB'] == year - 1) & (
+                        )['LIQUIDO_PRINCIPAL'].sum()) +
+                        float(xlsx.filter(
+                            (xlsx['ANO_DELIB'] == year - 1) & (
                                     (xlsx['CD_CLSC_TIP_DRT'] == 1) | (xlsx['CD_CLSC_TIP_DRT'] == 14))
-                    )['LIQUIDO_CORR'].sum())
+                        )['LIQUIDO_CORR'].sum())
                 )
 
                 bruto_div_ano_anterior = (
-                    float(xlsx.filter(
-                        (xlsx['ANO_DELIB'] != year) & (xlsx['ANO_DELIB'] != year - 1) &
-                        ((xlsx['CD_CLSC_TIP_DRT'] == 1) | (xlsx['CD_CLSC_TIP_DRT'] == 14)))['VL_MVT_REN'].sum()) +
-                    float(xlsx.filter(
-                        (xlsx['ANO_DELIB'] != year) & (xlsx['ANO_DELIB'] != year - 1) &
-                        ((xlsx['CD_CLSC_TIP_DRT'] == 1) | (xlsx['CD_CLSC_TIP_DRT'] == 14))
-                    )['VL_CORR_MVT_REN'].sum())
+                        float(xlsx.filter(
+                            (xlsx['ANO_DELIB'] != year) & (xlsx['ANO_DELIB'] != year - 1) &
+                            ((xlsx['CD_CLSC_TIP_DRT'] == 1) | (xlsx['CD_CLSC_TIP_DRT'] == 14)))['VL_MVT_REN'].sum()) +
+                        float(xlsx.filter(
+                            (xlsx['ANO_DELIB'] != year) & (xlsx['ANO_DELIB'] != year - 1) &
+                            ((xlsx['CD_CLSC_TIP_DRT'] == 1) | (xlsx['CD_CLSC_TIP_DRT'] == 14))
+                        )['VL_CORR_MVT_REN'].sum())
                 )
 
                 ir_div_ano_anterior = (
-                    float(xlsx.filter(
-                        (xlsx['ANO_DELIB'] != year) & (xlsx['ANO_DELIB'] != year - 1) &
-                        ((xlsx['CD_CLSC_TIP_DRT'] == 1) | (xlsx['CD_CLSC_TIP_DRT'] == 14))
-                    )['VL_IR_CLCD_MVT_REN'].sum()) +
-                    float(xlsx.filter(
-                        (xlsx['ANO_DELIB'] != year) & (xlsx['ANO_DELIB'] != year - 1) &
-                        ((xlsx['CD_CLSC_TIP_DRT'] == 1) | (xlsx['CD_CLSC_TIP_DRT'] == 14))
-                    )['VL_IR_CORR_MVT_REN'].sum())
+                        float(xlsx.filter(
+                            (xlsx['ANO_DELIB'] != year) & (xlsx['ANO_DELIB'] != year - 1) &
+                            ((xlsx['CD_CLSC_TIP_DRT'] == 1) | (xlsx['CD_CLSC_TIP_DRT'] == 14))
+                        )['VL_IR_CLCD_MVT_REN'].sum()) +
+                        float(xlsx.filter(
+                            (xlsx['ANO_DELIB'] != year) & (xlsx['ANO_DELIB'] != year - 1) &
+                            ((xlsx['CD_CLSC_TIP_DRT'] == 1) | (xlsx['CD_CLSC_TIP_DRT'] == 14))
+                        )['VL_IR_CORR_MVT_REN'].sum())
                 )
 
                 liquido_div_ano_anterior = (
-                    float(xlsx.filter(
-                        (xlsx['ANO_DELIB'] != year) & (xlsx['ANO_DELIB'] != year - 1) &
-                        ((xlsx['CD_CLSC_TIP_DRT'] == 1) | (xlsx['CD_CLSC_TIP_DRT'] == 14))
-                    )['LIQUIDO_PRINCIPAL'].sum()
-                          ) +
-                    float(xlsx.filter(
-                        (xlsx['ANO_DELIB'] != year) & (xlsx['ANO_DELIB'] != year - 1) &
-                        ((xlsx['CD_CLSC_TIP_DRT'] == 1) | (xlsx['CD_CLSC_TIP_DRT'] == 14))
-                    )['LIQUIDO_CORR'].sum())
+                        float(xlsx.filter(
+                            (xlsx['ANO_DELIB'] != year) & (xlsx['ANO_DELIB'] != year - 1) &
+                            ((xlsx['CD_CLSC_TIP_DRT'] == 1) | (xlsx['CD_CLSC_TIP_DRT'] == 14))
+                        )['LIQUIDO_PRINCIPAL'].sum()
+                              ) +
+                        float(xlsx.filter(
+                            (xlsx['ANO_DELIB'] != year) & (xlsx['ANO_DELIB'] != year - 1) &
+                            ((xlsx['CD_CLSC_TIP_DRT'] == 1) | (xlsx['CD_CLSC_TIP_DRT'] == 14))
+                        )['LIQUIDO_CORR'].sum())
                 )
 
                 bruto_jcp_ano_corrente = (
-                    float(xlsx.filter(
-                        (xlsx['ANO_DELIB'] == year) &
-                        ((xlsx['CD_CLSC_TIP_DRT'] == 5) | (xlsx['CD_CLSC_TIP_DRT'] == 10))
-                    )['VL_MVT_REN'].sum()) +
-                    float(xlsx.filter(
-                        (xlsx['ANO_DELIB'] == year) &
-                        ((xlsx['CD_CLSC_TIP_DRT'] == 1) | (xlsx['CD_CLSC_TIP_DRT'] == 14))
-                    )['VL_CORR_MVT_REN'].sum())
+                        float(xlsx.filter(
+                            (xlsx['ANO_DELIB'] == year) &
+                            ((xlsx['CD_CLSC_TIP_DRT'] == 5) | (xlsx['CD_CLSC_TIP_DRT'] == 10))
+                        )['VL_MVT_REN'].sum()) +
+                        float(xlsx.filter(
+                            (xlsx['ANO_DELIB'] == year) &
+                            ((xlsx['CD_CLSC_TIP_DRT'] == 1) | (xlsx['CD_CLSC_TIP_DRT'] == 14))
+                        )['VL_CORR_MVT_REN'].sum())
                 )
 
                 ir_jcp_ano_corrente = (
-                    float(xlsx.filter(
-                        (xlsx['ANO_DELIB'] == year) & ((xlsx['CD_CLSC_TIP_DRT'] == 5) | (xlsx['CD_CLSC_TIP_DRT'] == 10))
-                    )['VL_IR_CLCD_MVT_REN'].sum()) +
-                    float(xlsx.filter(
-                        (xlsx['ANO_DELIB'] == year) & ((xlsx['CD_CLSC_TIP_DRT'] == 1) | (xlsx['CD_CLSC_TIP_DRT'] == 14))
-                    )['VL_IR_CORR_MVT_REN'].sum())
+                        float(xlsx.filter(
+                            (xlsx['ANO_DELIB'] == year) & (
+                                    (xlsx['CD_CLSC_TIP_DRT'] == 5) | (xlsx['CD_CLSC_TIP_DRT'] == 10))
+                        )['VL_IR_CLCD_MVT_REN'].sum()) +
+                        float(xlsx.filter(
+                            (xlsx['ANO_DELIB'] == year) & (
+                                    (xlsx['CD_CLSC_TIP_DRT'] == 1) | (xlsx['CD_CLSC_TIP_DRT'] == 14))
+                        )['VL_IR_CORR_MVT_REN'].sum())
                 )
 
                 liquido_jcp_ano_corrente = (
-                    float(xlsx.filter(
-                        (xlsx['ANO_DELIB'] == year) & ((xlsx['CD_CLSC_TIP_DRT'] == 5) | (xlsx['CD_CLSC_TIP_DRT'] == 10))
-                    )['LIQUIDO_PRINCIPAL'].sum()) +
-                    float(xlsx.filter(
-                        (xlsx['ANO_DELIB'] == year) & ((xlsx['CD_CLSC_TIP_DRT'] == 1) | (xlsx['CD_CLSC_TIP_DRT'] == 14))
-                    )['LIQUIDO_CORR'].sum())
+                        float(xlsx.filter(
+                            (xlsx['ANO_DELIB'] == year) & (
+                                    (xlsx['CD_CLSC_TIP_DRT'] == 5) | (xlsx['CD_CLSC_TIP_DRT'] == 10))
+                        )['LIQUIDO_PRINCIPAL'].sum()) +
+                        float(xlsx.filter(
+                            (xlsx['ANO_DELIB'] == year) & (
+                                    (xlsx['CD_CLSC_TIP_DRT'] == 1) | (xlsx['CD_CLSC_TIP_DRT'] == 14))
+                        )['LIQUIDO_CORR'].sum())
                 )
 
                 bruto_jcp_ano_antes = (
-                    float(xlsx.filter(
-                        (xlsx['ANO_DELIB'] == year - 1) & (
+                        float(xlsx.filter(
+                            (xlsx['ANO_DELIB'] == year - 1) & (
                                     (xlsx['CD_CLSC_TIP_DRT'] == 5) | (xlsx['CD_CLSC_TIP_DRT'] == 10))
-                    )['VL_MVT_REN'].sum()) +
-                    float(xlsx.filter(
-                        (xlsx['ANO_DELIB'] == year - 1) & (
+                        )['VL_MVT_REN'].sum()) +
+                        float(xlsx.filter(
+                            (xlsx['ANO_DELIB'] == year - 1) & (
                                     (xlsx['CD_CLSC_TIP_DRT'] == 1) | (xlsx['CD_CLSC_TIP_DRT'] == 14))
-                    )['VL_CORR_MVT_REN'].sum())
+                        )['VL_CORR_MVT_REN'].sum())
                 )
 
                 ir_jcp_ano_antes = (
-                    float(xlsx.filter(
-                        (xlsx['ANO_DELIB'] == year - 1) & (
+                        float(xlsx.filter(
+                            (xlsx['ANO_DELIB'] == year - 1) & (
                                     (xlsx['CD_CLSC_TIP_DRT'] == 5) | (xlsx['CD_CLSC_TIP_DRT'] == 10))
-                    )['VL_IR_CLCD_MVT_REN'].sum()) +
-                    float(xlsx.filter(
-                        (xlsx['ANO_DELIB'] == year - 1) & (
+                        )['VL_IR_CLCD_MVT_REN'].sum()) +
+                        float(xlsx.filter(
+                            (xlsx['ANO_DELIB'] == year - 1) & (
                                     (xlsx['CD_CLSC_TIP_DRT'] == 1) | (xlsx['CD_CLSC_TIP_DRT'] == 14))
-                    )['VL_IR_CORR_MVT_REN'].sum())
+                        )['VL_IR_CORR_MVT_REN'].sum())
                 )
 
                 liquido_jcp_ano_antes = (
-                    float(xlsx.filter(
-                        (xlsx['ANO_DELIB'] == year - 1) & (
+                        float(xlsx.filter(
+                            (xlsx['ANO_DELIB'] == year - 1) & (
                                     (xlsx['CD_CLSC_TIP_DRT'] == 5) | (xlsx['CD_CLSC_TIP_DRT'] == 10))
-                    )['LIQUIDO_PRINCIPAL'].sum()) +
-                    float(xlsx.filter(
-                        (xlsx['ANO_DELIB'] == year - 1) & (
+                        )['LIQUIDO_PRINCIPAL'].sum()) +
+                        float(xlsx.filter(
+                            (xlsx['ANO_DELIB'] == year - 1) & (
                                     (xlsx['CD_CLSC_TIP_DRT'] == 1) | (xlsx['CD_CLSC_TIP_DRT'] == 14))
-                    )['LIQUIDO_CORR'].sum())
+                        )['LIQUIDO_CORR'].sum())
                 )
 
                 bruto_jcp_ano_anterior = (
-                    float(xlsx.filter(
-                        (xlsx['ANO_DELIB'] != year) & (xlsx['ANO_DELIB'] != year - 1) &
-                        ((xlsx['CD_CLSC_TIP_DRT'] == 5) | (xlsx['CD_CLSC_TIP_DRT'] == 10))
-                    )['VL_MVT_REN'].sum()) +
-                    float(xlsx.filter(
-                        (xlsx['ANO_DELIB'] != year) & (xlsx['ANO_DELIB'] != year - 1) &
-                        ((xlsx['CD_CLSC_TIP_DRT'] == 1) | (xlsx['CD_CLSC_TIP_DRT'] == 14))
-                    )['VL_CORR_MVT_REN'].sum())
+                        float(xlsx.filter(
+                            (xlsx['ANO_DELIB'] != year) & (xlsx['ANO_DELIB'] != year - 1) &
+                            ((xlsx['CD_CLSC_TIP_DRT'] == 5) | (xlsx['CD_CLSC_TIP_DRT'] == 10))
+                        )['VL_MVT_REN'].sum()) +
+                        float(xlsx.filter(
+                            (xlsx['ANO_DELIB'] != year) & (xlsx['ANO_DELIB'] != year - 1) &
+                            ((xlsx['CD_CLSC_TIP_DRT'] == 1) | (xlsx['CD_CLSC_TIP_DRT'] == 14))
+                        )['VL_CORR_MVT_REN'].sum())
                 )
 
                 ir_jcp_ano_anterior = (
-                    float(xlsx.filter(
-                        (xlsx['ANO_DELIB'] != year) & (xlsx['ANO_DELIB'] != year - 1) &
-                        ((xlsx['CD_CLSC_TIP_DRT'] == 5) | (xlsx['CD_CLSC_TIP_DRT'] == 10))
-                    )['VL_IR_CLCD_MVT_REN'].sum()) +
-                    float(xlsx.filter(
-                        (xlsx['ANO_DELIB'] != year) & (xlsx['ANO_DELIB'] != year - 1) &
-                        ((xlsx['CD_CLSC_TIP_DRT'] == 1) | (xlsx['CD_CLSC_TIP_DRT'] == 14))
-                    )['VL_IR_CORR_MVT_REN'].sum())
+                        float(xlsx.filter(
+                            (xlsx['ANO_DELIB'] != year) & (xlsx['ANO_DELIB'] != year - 1) &
+                            ((xlsx['CD_CLSC_TIP_DRT'] == 5) | (xlsx['CD_CLSC_TIP_DRT'] == 10))
+                        )['VL_IR_CLCD_MVT_REN'].sum()) +
+                        float(xlsx.filter(
+                            (xlsx['ANO_DELIB'] != year) & (xlsx['ANO_DELIB'] != year - 1) &
+                            ((xlsx['CD_CLSC_TIP_DRT'] == 1) | (xlsx['CD_CLSC_TIP_DRT'] == 14))
+                        )['VL_IR_CORR_MVT_REN'].sum())
                 )
 
                 liquido_jcp_ano_anterior = (
-                    float(xlsx.filter(
-                        (xlsx['ANO_DELIB'] != year) & (xlsx['ANO_DELIB'] != year - 1) &
-                        ((xlsx['CD_CLSC_TIP_DRT'] == 5) | (xlsx['CD_CLSC_TIP_DRT'] == 10))
-                    )['LIQUIDO_PRINCIPAL'].sum()) +
-                    float(xlsx.filter(
-                        (xlsx['ANO_DELIB'] != year) & (xlsx['ANO_DELIB'] != year - 1) &
-                        ((xlsx['CD_CLSC_TIP_DRT'] == 1) | (xlsx['CD_CLSC_TIP_DRT'] == 14))
-                    )['LIQUIDO_CORR'].sum())
+                        float(xlsx.filter(
+                            (xlsx['ANO_DELIB'] != year) & (xlsx['ANO_DELIB'] != year - 1) &
+                            ((xlsx['CD_CLSC_TIP_DRT'] == 5) | (xlsx['CD_CLSC_TIP_DRT'] == 10))
+                        )['LIQUIDO_PRINCIPAL'].sum()) +
+                        float(xlsx.filter(
+                            (xlsx['ANO_DELIB'] != year) & (xlsx['ANO_DELIB'] != year - 1) &
+                            ((xlsx['CD_CLSC_TIP_DRT'] == 1) | (xlsx['CD_CLSC_TIP_DRT'] == 14))
+                        )['LIQUIDO_CORR'].sum())
                 )
 
                 ws.set_column(0, 0, 20)
@@ -321,17 +320,18 @@ def preparo_xlsx(year: int, month: int) -> None:
 with open("static/arquivos/email3624.txt") as f:
     email = f.readlines()
 
-para = st.text_input(label="**PARA:**", value=email[0])
-cc = st.text_input(label="**CC:**", value=email[1])
+with st.columns(2)[0]:
+    para = st.text_input(label="**PARA:**", value=email[0])
+    cc = st.text_input(label="**CC:**", value=email[1])
 
-hoje = date.today()
+    hoje = date.today()
 
-col = st.columns([1.5, 0.5, 1])
-mes = col[0].slider(label="**Mês:**", min_value=1, max_value=12, value=hoje.month - 1 if 1 <= hoje.month - 1 else 12)
-ano = col[1].selectbox(label="**Ano:**", options=range(hoje.year, 1995, -1), index=0 if 1 <= hoje.month - 1 else 1)
+    col = st.columns([3, 1])
+    mes = col[0].slider(label="**Mês:**", min_value=1, max_value=12, value=hoje.month - 1 if 1 <= hoje.month - 1 else 12)
+    ano = col[1].selectbox(label="**Ano:**", options=range(hoje.year, 1995, -1), index=0 if 1 <= hoje.month - 1 else 1)
 
-if st.columns(7)[0].button("**ENVIAR**", type="primary", use_container_width=True):
-    if all([para, cc]):
-        preparo_xlsx(ano, mes)
-    else:
-        st.toast("**Ambos PARA: e CC: precisam ser preenchidos**", icon=":material/warning:")
+    if st.button("**ENVIAR**", type="primary"):
+        if all([para, cc]):
+            preparo_xlsx(ano, mes)
+        else:
+            st.toast("**Ambos PARA: e CC: precisam ser preenchidos**", icon=":material/warning:")

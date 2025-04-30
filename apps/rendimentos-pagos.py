@@ -4,13 +4,6 @@ import pandas as pd
 import streamlit as st
 from streamlit.connections import SQLConnection
 
-st.markdown("""
-<style>
-    [data-testid='stHeader'] {display: none;}
-    #MainMenu {visibility: hidden} footer {visibility: hidden}
-</style>
-""", unsafe_allow_html=True)
-
 engine = st.connection(name="DB2", type=SQLConnection)
 
 st.cache_data.clear()
@@ -25,7 +18,7 @@ st.markdown("""
 st.subheader(":material/paid: Rendimentos Pagos")
 
 
-@st.cache_data(show_spinner="Obtendo os dados, aguarde...")
+@st.cache_data(show_spinner=":material/hourglass: Obtendo os dados, aguarde...")
 def load_active(active: str) -> dict[int, str]:
     df = engine.query(
         sql=f"""
@@ -45,7 +38,7 @@ def load_active(active: str) -> dict[int, str]:
     return {k: v for k, v in zip(df["mci"].to_list(), df["nom"].to_list())}
 
 
-@st.cache_data(show_spinner="Obtendo os dados, aguarde...")
+@st.cache_data(show_spinner=":material/hourglass: Obtendo os dados, aguarde...")
 def load_report(_mci: int, _ano: int, _mes: int) -> pd.DataFrame:
     return engine.query(
         sql="""
@@ -83,7 +76,7 @@ def load_report(_mci: int, _ano: int, _mes: int) -> pd.DataFrame:
     )
 
 
-@st.cache_data(show_spinner="Obtendo os dados, aguarde...")
+@st.cache_data(show_spinner=":material/hourglass: Obtendo os dados, aguarde...")
 def load_data(_mci: int) -> pd.DataFrame:
     return engine.query(
         sql="""
@@ -109,24 +102,25 @@ option_active = st.radio(label="**Situação de Clientes:**", options=["ativos",
 
 kv = load_active("NULL") if option_active == "ativos" else load_active("NOT NULL")
 
-empresa = st.selectbox(label="**Clientes ativos:**" if option_active == "ativos" else "**Clientes inativos:**",
-                       options=sorted(kv.values()))
+with st.columns(2)[0]:
+    empresa = st.selectbox(label="**Clientes ativos:**" if option_active == "ativos" else "**Clientes inativos:**",
+                           options=sorted(kv.values()))
 
-mci = next((chave for chave, valor in kv.items() if valor == empresa), 0)
+    mci = next((chave for chave, valor in kv.items() if valor == empresa), 0)
 
-col = st.columns([1.5, 0.5, 1, 1])
-mes = col[0].slider(label="**Mês:**", min_value=1, max_value=12, value=date.today().month)
-ano = col[1].selectbox(label="**Ano:**", options=range(date.today().year, 1995, -1))
+    col = st.columns([2, 1, 1])
+    mes = col[0].slider(label="**Mês:**", min_value=1, max_value=12, value=date.today().month)
+    ano = col[1].selectbox(label="**Ano:**", options=range(date.today().year, 1995, -1))
 
-params = dict(type="primary", use_container_width=True)
+    params = dict(type="primary", use_container_width=True)
 
-st.divider()
+    st.divider()
 
-col = st.columns(3)
+    col = st.columns(3)
 
-btn_view = col[0].button(label="**Visualizar na tela**", icon=":material/preview:", **params)
-btn_csv = col[1].button(label="**Arquivo CSV**", icon=":material/csv:", **params)
-btn_excel = col[2].button(label="**Arquivo Excel**", icon=":material/format_list_numbered_rtl:", **params)
+    btn_view = col[0].button(label="**Visualizar na tela**", icon=":material/preview:", **params)
+    btn_csv = col[1].button(label="**Arquivo CSV**", icon=":material/csv:", **params)
+    btn_excel = col[2].button(label="**Arquivo Excel**", icon=":material/format_list_numbered_rtl:", **params)
 
 if btn_view:
     get_view = load_report(mci, ano, mes)

@@ -3,13 +3,6 @@ from datetime import date
 import pandas as pd
 import streamlit as st
 
-st.markdown("""
-<style>
-    [data-testid='stHeader'] {display: none;}
-    #MainMenu {visibility: hidden} footer {visibility: hidden}
-</style>
-""", unsafe_allow_html=True)
-
 data = pd.read_csv("static/arquivos/circular3945/cadastro.csv", delimiter=";")
 
 if "editor" not in st.session_state:
@@ -23,8 +16,8 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 st.subheader(":material/cycle: Circular BACEN 3945")
-st.write("##### Envio de arquivo à **BB Asset** com a informação do fechamento mensal das carteiras dos fundos "
-         "escriturados pelo BB, para atender a Carta Circular 3945 do Banco Central.")
+st.columns([3, 1])[0].write("##### Envio de arquivo à **BB Asset** com a informação do fechamento mensal das carteiras"
+                            " dos fundos escriturados pelo BB, para atender a Carta Circular 3945 do Banco Central.")
 
 with st.columns(4)[0]:
     code_user = st.text_input(label="**Código do Usuário:**")
@@ -44,7 +37,7 @@ st.divider()
 
 st.markdown("**Fundos enviados no último arquivo**")
 
-with st.spinner(text="Obtendo os dados, aguarde...", show_time=True):
+with st.spinner(text=":material/hourglass: Obtendo os dados, aguarde...", show_time=True):
     st.session_state["editor"] = st.data_editor(
         data=st.session_state["editor"], num_rows="dynamic", row_height=25,
         column_config={

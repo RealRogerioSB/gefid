@@ -2,13 +2,6 @@ import pandas as pd
 import streamlit as st
 from streamlit.connections import SQLConnection
 
-st.markdown("""
-<style>
-    [data-testid='stHeader'] {display: none;}
-    #MainMenu {visibility: hidden} footer {visibility: hidden}
-</style>
-""", unsafe_allow_html=True)
-
 engine = st.connection(name="DB2", type=SQLConnection)
 
 st.cache_data.clear()
@@ -23,7 +16,7 @@ st.markdown("""
 st.subheader(":material/savings: Rendimentos Pendentes")
 
 
-@st.cache_data(show_spinner="Obtendo os dados, aguarde...")
+@st.cache_data(show_spinner=":material/hourglass: Obtendo os dados, aguarde...")
 def load_active(active: str) -> dict[int, str]:
     df = engine.query(
         sql=f"""
@@ -43,7 +36,7 @@ def load_active(active: str) -> dict[int, str]:
     return {k: v for k, v in zip(df["mci"].to_list(), df["nom"].to_list())}
 
 
-@st.cache_data(show_spinner="Obtendo os dados, aguarde...")
+@st.cache_data(show_spinner=":material/hourglass: Obtendo os dados, aguarde...")
 def load_report(_mci: int) -> pd.DataFrame:
     return engine.query(
         sql="""
@@ -79,7 +72,7 @@ def load_report(_mci: int) -> pd.DataFrame:
     )
 
 
-@st.cache_data(show_spinner="Obtendo os dados, aguarde...")
+@st.cache_data(show_spinner=":material/hourglass: Obtendo os dados, aguarde...")
 def load_data(_mci: int) -> pd.DataFrame:
     return engine.query(
         sql="""
@@ -105,20 +98,21 @@ option_active = st.radio(label="**Situação de Clientes:**", options=["ativos",
 
 kv = load_active("NULL") if option_active == "ativos" else load_active("NOT NULL")
 
-empresa = st.selectbox(label="**Clientes ativos:**" if option_active == "ativos" else "**Clientes inativos:**",
-                       options=sorted(kv.values()))
+with st.columns(2)[0]:
+    empresa = st.selectbox(label="**Clientes ativos:**" if option_active == "ativos" else "**Clientes inativos:**",
+                           options=sorted(kv.values()))
 
-mci = next((chave for chave, valor in kv.items() if valor == empresa), 0)
+    mci = next((chave for chave, valor in kv.items() if valor == empresa), 0)
 
-params = dict(type="primary", use_container_width=True)
+    params = dict(type="primary", use_container_width=True)
 
-st.divider()
+    st.divider()
 
-col = st.columns(3)
+    col = st.columns(3)
 
-btn_view = col[0].button(label="**Visualizar na tela**", icon=":material/preview:", **params)
-btn_csv = col[1].button(label="**Arquivo CSV**", icon=":material/csv:", **params)
-btn_excel = col[2].button(label="**Arquivo Excel**", icon=":material/format_list_numbered_rtl:", **params)
+    btn_view = col[0].button(label="**Visualizar na tela**", icon=":material/preview:", **params)
+    btn_csv = col[1].button(label="**Arquivo CSV**", icon=":material/csv:", **params)
+    btn_excel = col[2].button(label="**Arquivo Excel**", icon=":material/format_list_numbered_rtl:", **params)
 
 if btn_view:
     get_view = load_report(mci)
@@ -140,7 +134,7 @@ if btn_view:
 if btn_csv:
     get_csv = load_report(mci)
     if not get_csv.empty:
-        sigla = load_data(mci)["SIGLA"][0]
+        sigla = load_data(mci)["sigla"][0]
         get_csv.write_csv(file=f"static/escriturais/@deletar/{sigla}-Rendimentos Pendentes.csv")
     else:
         st.toast(body="**Sem dados para exibir**", icon=":material/warning:")
@@ -148,7 +142,7 @@ if btn_csv:
 if btn_excel:
     get_xlsx = load_report(mci)
     if not get_xlsx.empty:
-        sigla = load_data(mci)["SIGLA"][0]
+        sigla = load_data(mci)["sigla"][0]
         if len(get_xlsx) <= int(1e6):
             caminho_saida = f"static/escriturais/@deletar/{sigla}-Rendimentos Pendentes.xlsx"
             get_xlsx.to_excel(excel_writer=caminho_saida, index=False, engine="xlsxwriter")

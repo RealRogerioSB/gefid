@@ -4,11 +4,19 @@ import pandas as pd
 import streamlit as st
 import xlsxwriter
 
+st.markdown("""
+<style>
+    [data-testid='stHeader'] {display: none;}
+    MainMenu {visibility: hidden} footer {visibility: hidden}
+</style>
+""", unsafe_allow_html=True)
+
 st.subheader(":material/diversity_3: EDIV")
+
 st.markdown("#### Separação do EDIV por processos")
 
-st.write("##### Os arquivos EDIV e o IRMCI devem ser colocados na pasta P:\MER\Acoes_Escriturais\@deletar\ e "
-         "escolhidos abaixo")
+st.columns([3, 1])[0].write("##### Os arquivos EDIV e o IRMCI devem ser colocados na pasta "
+                            "P:\MER\Acoes_Escriturais\@deletar\ e escolhidos abaixo")
 
 col1, col2, _, _ = st.columns([1, 1, 0.5, 0.5])
 
@@ -176,11 +184,4 @@ if st.button(label="**:material/content_cut: Separar Processos**", type="primary
             writer.close()
             workbook.close()
     else:
-        st.toast("**:material/warning: Precisa de 2 arquivos para importar...**")
-
-st.markdown("""
-<style>
-    [data-testid='stHeader'] {display: none;}
-    MainMenu {visibility: hidden} footer {visibility: hidden}
-</style>
-""", unsafe_allow_html=True)
+        st.toast("**Precisa de 2 arquivos para importar...**", icon=":material/warning:")

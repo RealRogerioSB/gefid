@@ -4,13 +4,6 @@ import pandas as pd
 import streamlit as st
 from streamlit.connections import SQLConnection
 
-st.markdown("""
-<style>
-    [data-testid='stHeader'] {display: none;}
-    #MainMenu {visibility: hidden} footer {visibility: hidden}
-</style>
-""", unsafe_allow_html=True)
-
 st.cache_data.clear()
 
 engine = st.connection(name="DB2", type=SQLConnection)
@@ -25,7 +18,7 @@ st.markdown("""
 st.subheader(":material/account_balance: Base de Investidores")
 
 
-@st.cache_data(show_spinner="Obtendo os dados, aguarde...")
+@st.cache_data(show_spinner=":material/hourglass: Obtendo os dados, aguarde...")
 def load_active(active: str) -> dict[int, str]:
     df = engine.query(
         sql=f"""
@@ -45,7 +38,7 @@ def load_active(active: str) -> dict[int, str]:
     return {k: v for k, v in zip(df["mci"].to_list(), df["nom"].to_list())}
 
 
-@st.cache_data(show_spinner="Obtendo os dados, aguarde...")
+@st.cache_data(show_spinner=":material/hourglass: Obtendo os dados, aguarde...")
 def load_report(_mci: int, _year: int, _month: int, _data: date) -> pd.DataFrame:
     base = engine.query(
         sql="""
@@ -170,7 +163,7 @@ def load_report(_mci: int, _year: int, _month: int, _data: date) -> pd.DataFrame
     return dfixo
 
 
-@st.cache_data(show_spinner="Obtendo os dados, aguarde...")
+@st.cache_data(show_spinner=":material/hourglass: Obtendo os dados, aguarde...")
 def load_data(_mci: int) -> tuple[int, str, int, str]:
     cadastro = engine.query(
         sql="""
@@ -204,53 +197,55 @@ option_active = st.radio(label="**Situação de Clientes:**", options=["ativos",
 
 kv = load_active("NULL" if option_active == "ativos" else "NOT NULL")
 
-empresa = st.selectbox(
-    label="**Clientes ativos:**" if option_active == "ativos" else "**Clientes inativos:**",
-    options=sorted(kv.values()),
-)
+with st.columns(2)[0]:
+    empresa = st.selectbox(
+        label="**Clientes ativos:**" if option_active == "ativos" else "**Clientes inativos:**",
+        options=sorted(kv.values()),
+    )
+
+    with st.columns(3)[0]:
+        hoje = st.date_input(label="**Data:**", value=date.today(), format="DD/MM/YYYY")
 
 mci = next((chave for chave, valor in kv.items() if valor == empresa), 0)
-
-col = st.columns(3)
-hoje = col[0].date_input(label="**Data:**", value=date.today(), format="DD/MM/YYYY")
 
 year = hoje.year - 1 if hoje.month == 1 else hoje.year
 month = 12 if hoje.month == 1 else hoje.month - 1
 
-st.divider()
+with st.columns(2)[0]:
+    st.divider()
 
-params = dict(type="primary", use_container_width=True)
+    params = dict(type="primary", use_container_width=True)
 
-col = st.columns(3)
+    col = st.columns(3)
 
-btn_view = col[0].button(label="**Visualizar na tela**", icon=":material/preview:", **params)
-btn_csv = col[1].button(label="**Arquivo CSV**", icon=":material/csv:", **params)
-btn_excel = col[2].button(label="**Arquivo Excel**", icon=":material/format_list_numbered_rtl:", **params)
+    btn_view = col[0].button(label="**Visualizar na tela**", icon=":material/preview:", **params)
+    btn_csv = col[1].button(label="**Arquivo CSV**", icon=":material/csv:", **params)
+    btn_excel = col[2].button(label="**Arquivo Excel**", icon=":material/format_list_numbered_rtl:", **params)
 
-if btn_view:
-    get_report = load_report(mci, year, month, hoje)
-    if not get_report.empty:
-        get_title = load_data(mci)
-        st.write(f"**MCI:** {get_title[0]}")
-        st.write(f"**Empresa:** {get_title[1]}")
-        st.write(f"**CNPJ:** {int(get_title[2])}")
-        st.write(f"**Data:** {hoje:%d/%m/%Y}")
+    if btn_view:
+        get_report = load_report(mci, year, month, hoje)
+        if not get_report.empty:
+            get_title = load_data(mci)
+            st.write(f"**MCI:** {get_title[0]}")
+            st.write(f"**Empresa:** {get_title[1]}")
+            st.write(f"**CNPJ:** {int(get_title[2])}")
+            st.write(f"**Data:** {hoje:%d/%m/%Y}")
 
-        st.dataframe(get_report, hide_index=True)
+            st.dataframe(get_report, hide_index=True)
 
-        st.button(label="**Voltar**", key="btn_back", type="primary")
-    else:
-        st.toast(body="**Sem dados para exibir**", icon=":material/warning:")
+            st.button(label="**Voltar**", key="btn_back", type="primary")
+        else:
+            st.toast(body="**Sem dados para exibir**", icon=":material/warning:")
 
-if btn_csv:
-    get_report = load_report(mci, year, month, hoje)
-    if not get_report.empty:
-        get_title = load_data(mci)
-        get_report.to_csv(f"static/escriturais/@deletar/{get_title[3]}-{hoje}.csv", index=False)
+    if btn_csv:
+        get_report = load_report(mci, year, month, hoje)
+        if not get_report.empty:
+            get_title = load_data(mci)
+            get_report.to_csv(f"static/escriturais/@deletar/{get_title[3]}-{hoje}.csv", index=False)
 
-        st.toast(body="**Arquivo CSV enviado para a pasta específica**", icon=":material/check_circle:")
-    else:
-        st.toast(body="**Sem dados para exibir**", icon=":material/warning:")
+            st.toast(body="**Arquivo CSV enviado para a pasta específica**", icon=":material/check_circle:")
+        else:
+            st.toast(body="**Sem dados para exibir**", icon=":material/warning:")
 
-if btn_excel:
-    pass
+    if btn_excel:
+        pass

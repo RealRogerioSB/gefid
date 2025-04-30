@@ -12,9 +12,11 @@ st.markdown("""
 
 st.subheader(":material/calculate: Cálculo de Rendimentos")
 
-st.markdown("##### Os arquivos com a extensão AEBF543A devem ser colocadas na pasta P:\MER\Acoes_Escriturais\@deletar")
-st.markdown("##### Certifique-se que não existam outros arquivos com a mesma extensão além daqueles que deseja que "
-            "sejam processadas")
+with st.columns(2)[0]:
+    st.markdown("##### Os arquivos com a extensão AEBF543A devem ser colocadas na pasta "
+                "P:\MER\Acoes_Escriturais\@deletar")
+    st.markdown("##### Certifique-se que não existam outros arquivos com a mesma extensão"
+                " além daqueles que deseja que sejam processadas")
 
 if st.button(label="**:material/description: Gerar 543**", type="primary"):
     with st.spinner("**Criando tabela, aguarde...**", show_time=True):
