@@ -224,6 +224,11 @@ if st.session_state.btn_montar:
                     if not all([st.session_state["from_email"], st.session_state["to_email"]]):
                         st.toast("**Deve preencher e-mails de remetente e destinatário**", icon=":material/warning:")
                         st.stop()
+
+                    elif st.session_state["from_email"].count("@") > 1:
+                        st.toast("**Só pode haver único e-mail para remetente**", icon=":material/warning:")
+                        st.stop()
+
                     else:
                         msgcp = MIMEMultipart()
                         msgcp["Subject"] = "DECLARAÇÃO CANCELAMENTO DE CEPAC"

@@ -8,13 +8,6 @@ data = pd.read_csv("static/arquivos/circular3945/cadastro.csv", delimiter=";")
 if "editor" not in st.session_state:
     st.session_state["editor"] = data.copy()
 
-st.markdown("""
-<style>
-    [data-testid='stHeader'] {display: none;}
-    #MainMenu {visibility: hidden} footer {visibility: hidden}
-</style>
-""", unsafe_allow_html=True)
-
 st.subheader(":material/cycle: Circular BACEN 3945")
 st.columns([3, 1])[0].write("##### Envio de arquivo à **BB Asset** com a informação do fechamento mensal das carteiras"
                             " dos fundos escriturados pelo BB, para atender a Carta Circular 3945 do Banco Central.")

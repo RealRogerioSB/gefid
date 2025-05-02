@@ -18,13 +18,6 @@ st.cache_data.clear()
 
 engine = st.connection(name="DB2", type=SQLConnection)
 
-st.markdown("""
-<style>
-    [data-testid='stHeader'] {display: none;}
-    #MainMenu {visibility: hidden} footer {visibility: hidden}
-</style>
-""", unsafe_allow_html=True)
-
 
 @st.cache_data(show_spinner="**:material/hourglass: Obtendo os dados, aguarde...**")
 def load_evid(_data_pos: date) -> pd.DataFrame:

@@ -7,13 +7,6 @@ from streamlit.connections import SQLConnection
 
 engine = st.connection(name="DB2", type=SQLConnection)
 
-st.markdown("""
-<style>
-    [data-testid='stHeader'] {display: none;}
-    #MainMenu {visibility: hidden} footer {visibility: hidden}
-</style>
-""", unsafe_allow_html=True)
-
 st.subheader(":material/cycle: Circular BACEN 3624")
 
 st.columns([3, 1])[0].markdown("#### Envio de arquivo à COGER, com a informação dos rendimentos pagos aos acionistas "

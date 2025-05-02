@@ -3,13 +3,6 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 
-st.markdown("""
-<style>
-    [data-testid='stHeader'] {display: none;}
-    #MainMenu {visibility: hidden} footer {visibility: hidden}
-</style>
-""", unsafe_allow_html=True)
-
 st.subheader(":material/calculate: Cálculo de Rendimentos")
 
 with st.columns(2)[0]:

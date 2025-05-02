@@ -3,13 +3,6 @@ import streamlit as st
 from streamlit.connections import SQLConnection
 from unidecode import unidecode
 
-st.markdown("""
-<style>
-    [data-testid='stHeader'] {display: none;}
-    #MainMenu {visibility: hidden} footer {visibility: hidden}
-</style>
-""", unsafe_allow_html=True)
-
 st.cache_data.clear()
 
 engine: SQLConnection = st.connection(name="DB2", type=SQLConnection)

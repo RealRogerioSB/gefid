@@ -6,14 +6,9 @@ import streamlit as st
 from streamlit.connections import SQLConnection
 from unidecode import unidecode
 
-engine = st.connection(name="DB2", type=SQLConnection)
+st.cache_data.clear()
 
-st.markdown("""
-<style>
-    [data-testid='stHeader'] {display: none;}
-    #MainMenu {visibility: hidden} footer {visibility: hidden}
-</style>
-""", unsafe_allow_html=True)
+engine = st.connection(name="DB2", type=SQLConnection)
 
 st.subheader(f":material/ad: Informe de Rendimentos - {date.today().year}")
 
@@ -28,7 +23,7 @@ params_columns = dict(
 
 
 @st.cache_data(show_spinner=False)
-def get_join_email(field: str, value: int | str) -> pd.DataFrame:
+def get_join_email(key: str, value: int | str) -> pd.DataFrame:
     return engine.query(
         sql=f"""
             SELECT DISTINCT
@@ -46,8 +41,8 @@ def get_join_email(field: str, value: int | str) -> pd.DataFrame:
                 LEFT JOIN DB2I13E5.IR2025_CADASTRO_B3 t3
                     ON t3.MCI_INVESTIDOR = t1.CD_CLI_ACNT
             WHERE
-                t2.{field.upper()} = :value OR
-                t3.{field.upper()} = :value
+                t2.{key.upper()} = :value OR
+                t3.{key.upper()} = :value
         """,
         show_spinner=False,
         ttl=60,
@@ -56,7 +51,7 @@ def get_join_email(field: str, value: int | str) -> pd.DataFrame:
 
 
 @st.cache_data(show_spinner=False)
-def get_email(field: str, value: int | str) -> pd.DataFrame:
+def get_email(key: str, value: int | str) -> pd.DataFrame:
     return engine.query(
         sql=f"""
             SELECT DISTINCT
@@ -70,7 +65,7 @@ def get_email(field: str, value: int | str) -> pd.DataFrame:
             FROM
                 DB2I13E5.IR2025_ENVIO_EMAILS
             WHERE
-                {field.upper()} = :value
+                {key.upper()} = :value
         """,
         show_spinner=False,
         ttl=60,
@@ -79,9 +74,9 @@ def get_email(field: str, value: int | str) -> pd.DataFrame:
 
 
 @st.cache_data(show_spinner=False)
-def get_bb(field: str, value: int | str) -> pd.DataFrame:
+def get_bb(key: str, value: int | str) -> pd.DataFrame:
     return engine.query(
-        sql=f"SELECT * FROM DB2I13E5.IR2025_CADASTRO_BB WHERE {field.upper()} = :value",
+        sql=f"SELECT * FROM DB2I13E5.IR2025_CADASTRO_BB WHERE {key.upper()} = :value",
         show_spinner=False,
         ttl=60,
         params=dict(value=value),
@@ -89,9 +84,9 @@ def get_bb(field: str, value: int | str) -> pd.DataFrame:
 
 
 @st.cache_data(show_spinner=False)
-def get_b3(field: str, value: int | str) -> pd.DataFrame:
+def get_b3(key: str, value: int | str) -> pd.DataFrame:
     return engine.query(
-        sql=f"SELECT * FROM DB2I13E5.IR2025_CADASTRO_B3 WHERE {field.upper()} = :value",
+        sql=f"SELECT * FROM DB2I13E5.IR2025_CADASTRO_B3 WHERE {key.upper()} = :value",
         show_spinner=False,
         ttl=60,
         params=dict(value=value),
