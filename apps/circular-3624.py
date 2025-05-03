@@ -5,14 +5,14 @@ import streamlit as st
 import xlsxwriter
 from streamlit.connections import SQLConnection
 
+st.cache_data.clear()
+
 engine = st.connection(name="DB2", type=SQLConnection)
 
 st.subheader(":material/cycle: Circular BACEN 3624")
 
 st.columns([3, 1])[0].markdown("#### Envio de arquivo à COGER, com a informação dos rendimentos pagos aos acionistas "
                                "do Banco do Brasil, para atender Carta Circular 3624 do Banco Central")
-
-st.cache_data.clear()
 
 
 @st.cache_data(show_spinner=False)
@@ -40,7 +40,7 @@ def load_data(year: int, month: int) -> pd.DataFrame:
                      t1.CD_TIP_DRT
             """,
         show_spinner=False,
-        ttl=60,
+        ttl=0,
         params=dict(year=year, month=month),
     )
 
@@ -314,17 +314,28 @@ with open("static/arquivos/email3624.txt") as f:
     email = f.readlines()
 
 with st.columns(2)[0]:
-    para = st.text_input(label="**PARA:**", value=email[0])
-    cc = st.text_input(label="**CC:**", value=email[1])
+    st.text_input(label="**PARA:**", value=email[0], key="para")
+    st.text_input(label="**CC:**", value=email[1], key="cc")
 
-    hoje = date.today()
+    hoje: date = date.today()
 
     col = st.columns([3, 1])
-    mes = col[0].slider(label="**Mês:**", min_value=1, max_value=12, value=hoje.month - 1 if 1 <= hoje.month - 1 else 12)
-    ano = col[1].selectbox(label="**Ano:**", options=range(hoje.year, 1995, -1), index=0 if 1 <= hoje.month - 1 else 1)
+    col[0].slider(
+        label="**Mês:**",
+        min_value=1,
+        max_value=12,
+        value=hoje.month - 1 if 1 <= hoje.month - 1 else 12,
+        key="mes"
+    )
+    col[1].selectbox(
+        label="**Ano:**",
+        options=range(hoje.year, 1995, -1),
+        index=0 if 1 <= hoje.month - 1 else 1,
+        key="ano"
+    )
 
     if st.button("**ENVIAR**", type="primary"):
-        if all([para, cc]):
-            preparo_xlsx(ano, mes)
+        if all([st.session_state["para"], st.session_state["cc"]]):
+            preparo_xlsx(st.session_state["ano"], st.session_state["mes"])
         else:
             st.toast("**Ambos PARA: e CC: precisam ser preenchidos**", icon=":material/warning:")

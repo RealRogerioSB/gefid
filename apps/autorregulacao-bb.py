@@ -34,7 +34,7 @@ def load_evid(_data_pos: date) -> pd.DataFrame:
                      CD_CLI_EMT
             ORDER BY CD_CLI_ACNT
             """,
-        ttl=60,
+        ttl=0,
         show_spinner=False,
         params=dict(data_posterior=_data_pos),
     )
@@ -87,7 +87,7 @@ if st.session_state.btn_ev:
         {"empresa": "BB Gestão de Recursos Dist Títulos e Val", "cnpj": "30.822.936/0001-69"},
     ]
 
-    if len(dfevid) > 0:
+    if not dfevid.empty:
         last_day: date = date(ano, mes, 1) - timedelta(days=1)
 
         arquivo: str = f"static/escriturais/@deletar/Autorregulação BB - Evidências - {data_pos:%B} de {ano}.pdf"
@@ -216,7 +216,7 @@ if st.session_state.btn_ac:
 
         # conteúdo da aba quadro resumo
         worksheet_qr.set_column(1, 3, 50)
-        worksheet_qr.merge_range("B2:D2", f"Autorregulação Banco do Brasil - {mes:%B} de {ano}", titulo)
+        worksheet_qr.merge_range("B2:D2", f"Autorregulação Banco do Brasil - {data_pos:%B} de {ano}", titulo)
 
         worksheet_qr.write("B4", "Segmento", menu_format)
         worksheet_qr.write("B5", "Pessoas Físicas no País", text_format)
@@ -518,7 +518,7 @@ if st.session_state.btn_au:
                     else:
                         continue
 
-            baseacionaria.save(filename=f"static/escriturais/@deletar/Autorregulação_-_DIOPE-GEFID_-_{mes:%B} de "
+            baseacionaria.save(filename=f"static/escriturais/@deletar/Autorregulação_-_DIOPE-GEFID_-_{data_pos:%B} de "
                                         f"{ano}.xlsx")
 
         aba_base()

@@ -22,10 +22,10 @@ def load_active(active: str) -> dict[int, str]:
                 INNER JOIN DB2MCI.CLIENTE AS t2
                     ON t2.COD = t1.CD_CLI_EMT
             WHERE
-                t1.DT_ECR_CTR IS {active}
+                t1.DT_ECR_CTR IS {active.upper()}
         """,
         show_spinner=False,
-        ttl=60,
+        ttl=0,
     )
     return {k: v for k, v in zip(df["mci"].to_list(), df["nom"].to_list())}
 
@@ -35,7 +35,7 @@ def report(_mci: int, _ano: int, _mes: int, _data: date) -> None:
     base = engine.query(
         sql="""
             SELECT
-                1 as TIPO,
+                1 AS TIPO,
                 t5.CD_CLI_ACNT AS MCI,
                 CASE
                     WHEN t6.COD_PAIS_ORIG <= 1 AND t5.CD_CLI_ACNT < 1000000000 AND t6.COD_TIPO = 1 THEN 'F'
@@ -47,9 +47,9 @@ def report(_mci: int, _ano: int, _mes: int, _data: date) -> None:
                 CASE
                     WHEN t5.CD_CLI_ACNT < 1000000000 THEN CAST(t6.COD_CPF_CGC AS BIGINT)
                     ELSE CAST(t8.NR_CPF_CNPJ_INVR AS BIGINT)
-                END AS CPF_CNPJ,
+                    END AS CPF_CNPJ,
                 t5.DATA,
-                t5.CD_TIP_TIT as COD_TITULO,
+                t5.CD_TIP_TIT AS COD_TITULO,
                 CAST(t5.QUANTIDADE AS BIGINT) AS QUANTIDADE
             FROM (
                 SELECT
@@ -72,14 +72,13 @@ def report(_mci: int, _ano: int, _mes: int, _data: date) -> None:
                     SELECT
                         t1.CD_TIP_TIT,
                         t1.CD_CLI_ACNT,
-                        t1.DT_PSC - 1 DAY AS DATA,
-                        t1.QT_TIT_INC_MM AS QUANTIDADE
+                        t1.DT_PSC - 1 DAY AS DATA, t1.QT_TIT_INC_MM AS QUANTIDADE
                     FROM
                         DB2AEB.PSC_TIT_MVTD t1
                     WHERE
                         t1.CD_CLI_EMT = :mci AND
                         t1.CD_CLI_CSTD = 903485186
-                ) 
+                )
             ) t5
             LEFT JOIN DB2MCI.CLIENTE t6
                 ON t5.CD_CLI_ACNT = t6.COD
@@ -92,7 +91,7 @@ def report(_mci: int, _ano: int, _mes: int, _data: date) -> None:
                 DATA DESC
         """,
         show_spinner=False,
-        ttl=60,
+        ttl=0,
         params=dict(mci=_mci, anterior=date(_ano, _mes, 28).strftime("%Y-%m-%d"), data=_data.strftime("%Y-%m-%d")),
     )
     if base.empty:
@@ -110,38 +109,40 @@ def report(_mci: int, _ano: int, _mes: int, _data: date) -> None:
 
             y = globals()["base" + str(z)].apply(lambda x: "%s%s%s%s%s" % (
                 x["tipo"], x["pss"], str(x["cpf_cnpj"]).zfill(19), str(x["quantidade"]).zfill(17), x["reserva"]),
-                                                   axis=1)
+                                                 axis=1)
 
-            y.to_csv(f"static/escriturais/@deletar/resolucao160-{empresa}-tipo{z}.txt",
+            y.to_csv(f"static/escriturais/@deletar/resolucao160-{st.session_state['empresa']}-tipo{z}.txt",
                      sep='.', header=False, index=False)
 
-            trailer = f"9 {str(len(y.index) + 1).zfill(19)}{str(base['quantidade'].sum()).zfill(17)}            "
+            trailer: str = f"9 {str(len(y.index) + 1).zfill(19)}{str(base['quantidade'].sum()).zfill(17)}            "
 
-            with open(f"static/escriturais/@deletar/resolucao160-{empresa}-tipo{z}.txt", "a") as f:
+            with open(f"static/escriturais/@deletar/resolucao160-{st.session_state['empresa']}-tipo{z}.txt", "a") as f:
                 f.write(trailer)
 
         st.toast(body="**Criação de TXT feita com sucesso**", icon=":material/info:")
 
 
-with st.columns(2)[0]:
-    option_active = st.radio(label="**Situação de Clientes:**", options=["ativos", "inativos"])
+with (st.columns(2)[0]):
+    st.radio(label="**Situação de Clientes:**", options=["ativos", "inativos"], key="option_active")
 
-    kv = load_active("NULL") if option_active == "ativos" else load_active("NOT NULL")
+    kv: dict[int, str] = load_active("null") if st.session_state["option_active"] == "ativos" \
+        else load_active("not null")
 
-    empresa = st.selectbox(
-        label="**Clientes ativos:**" if option_active == "ativos" else "**Clientes inativos:**",
+    st.selectbox(
+        label="**Clientes ativos:**" if st.session_state["option_active"] == "ativos" else "**Clientes inativos:**",
         options=sorted(kv.values()),
+        key="empresa",
     )
 
-    mci = next((chave for chave, valor in kv.items() if valor == empresa), 0)
+    mci: int = next((chave for chave, valor in kv.items() if valor == st.session_state["empresa"]), 0)
 
-    col = st.columns(3)
-    data = col[0].date_input(label="**Data:**", value=date.today().replace(day=1) - timedelta(days=1),
-                             format="DD/MM/YYYY")
+    st.columns(3)[0].date_input(label="**Data:**", value=date.today().replace(day=1) - timedelta(days=1), key="data",
+                                format="DD/MM/YYYY")
 
-    ano = data.year - 1 if data.month == 1 else data.year
-    mes = 12 if data.month == 1 else data.month - 1
+    ano: int = st.session_state["data"].year - 1 if st.session_state["data"].month == 1 \
+    else st.session_state["data"].year
+    mes: int = 12 if st.session_state["data"].month == 1 else st.session_state["data"].month - 1
 
     if st.button(label="**Enviar TXT**", key="btn_send_csv", icon=":material/edit_note:", type="primary"):
         with st.spinner(text="**:material/hourglass: Obtendo os dados, aguarde...**", show_time=True):
-            report(mci, ano, mes, data)
+            report(mci, ano, mes, st.session_state["data"])

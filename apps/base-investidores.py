@@ -23,10 +23,10 @@ def load_active(active: str) -> dict[int, str]:
                 INNER JOIN DB2MCI.CLIENTE AS t2
                     ON t2.COD = t1.CD_CLI_EMT
             WHERE
-                t1.DT_ECR_CTR IS {active}
+                t1.DT_ECR_CTR IS {active.upper()}
         """,
         show_spinner=False,
-        ttl=60,
+        ttl=0,
     )
     return {k: v for k, v in zip(df["mci"].to_list(), df["nom"].to_list())}
 
@@ -106,7 +106,7 @@ def load_report(_mci: int, _year: int, _month: int, _data: date) -> pd.DataFrame
                 DATA DESC
         """,
         show_spinner=False,
-        ttl=60,
+        ttl=0,
         params=dict(
             mci=_mci,
             anterior=date(_year, _month, 28).strftime("%Y-%m-%d"),
@@ -129,7 +129,7 @@ def load_report(_mci: int, _year: int, _month: int, _data: date) -> pd.DataFrame
         dfx = base[(base["COD_TITULO"] + base["SIGLA"]).eq(x)].copy()
         dfx.reset_index(drop=True, inplace=True)
 
-        tipo = dfx["SIGLA"][0] + dfx["COD_TITULO"].astype(str)[0]
+        tipo = dfx["SIGLA"].iloc[0] + dfx["COD_TITULO"].astype(str).iloc[0]
 
         dfbb = dfx[dfx["CUSTODIANTE"].eq("ESCRITURAL")].copy()[["MCI", "QUANTIDADE"]]
         dfbb.rename(columns={"QUANTIDADE": "BB_" + tipo}, inplace=True)
@@ -148,8 +148,8 @@ def load_report(_mci: int, _year: int, _month: int, _data: date) -> pd.DataFrame
     cols = ["MCI", "INVESTIDOR", "CPF_CNPJ"]
 
     for x in lista_tit:
-        dfixo["TOTAL_" + x] = dfixo["BB_" + x] + dfixo["B3_" + x]
-        cols.extend(["BB_" + x, "B3_" + x, "TOTAL_" + x])
+        dfixo[f"TOTAL_{x}"] = dfixo[f"BB_{x}"] + dfixo[f"B3_{x}"]
+        cols.extend([f"BB_{x}", f"B3_{x}", f"TOTAL_{x}"])
 
     dfixo = dfixo[cols]
 
@@ -173,72 +173,68 @@ def load_data(_mci: int) -> tuple[int, str, int, str]:
                 t1.CD_CLI_EMT = :mci
         """,
         show_spinner=False,
-        ttl=60,
+        ttl=0,
         params=dict(mci=_mci),
     )
-    cadastro.columns = [str(columns).upper() for columns in cadastro.columns]
 
-    mci_empresa = cadastro["MCI"][0]
-    nome = cadastro["EMPRESA"][0]
-    cnpj = cadastro["CNPJ"][0]
-    sigla = cadastro["SIGLA"][0]
-
-    return mci_empresa, nome, cnpj, sigla
+    return cadastro["mci"].iloc[0], cadastro["empresa"].iloc[0], cadastro["cnpj"].iloc[0], cadastro["sigla"].iloc[0]
 
 
-option_active = st.radio(label="**Situação de Clientes:**", options=["ativos", "inativos"])
+st.radio(label="**Situação de Clientes:**", options=["ativos", "inativos"], key="option_active")
 
-kv = load_active("NULL" if option_active == "ativos" else "NOT NULL")
+kv: dict[int, str] = load_active("null" if st.session_state["option_active"] == "ativos" else "not null")
 
 with st.columns(2)[0]:
-    empresa = st.selectbox(
-        label="**Clientes ativos:**" if option_active == "ativos" else "**Clientes inativos:**",
+    st.selectbox(
+        label="**Clientes ativos:**" if st.session_state["option_active"] == "ativos" else "**Clientes inativos:**",
         options=sorted(kv.values()),
+        key="empresa",
     )
 
     with st.columns(3)[0]:
-        hoje = st.date_input(label="**Data:**", value=date.today(), format="DD/MM/YYYY")
+        st.date_input(label="**Data:**", value=date.today(), key="hoje", format="DD/MM/YYYY")
 
-mci = next((chave for chave, valor in kv.items() if valor == empresa), 0)
+mci: int = next((chave for chave, valor in kv.items() if valor == st.session_state["empresa"]), 0)
 
-year = hoje.year - 1 if hoje.month == 1 else hoje.year
-month = 12 if hoje.month == 1 else hoje.month - 1
+year: int = st.session_state["hoje"].year - 1 if st.session_state["hoje"].month == 1 else st.session_state["hoje"].year
+month: int = 12 if st.session_state["hoje"].month == 1 else st.session_state["hoje"].month - 1
 
 with st.columns(2)[0]:
     st.divider()
 
-    params = dict(type="primary", use_container_width=True)
+    params: dict[str, str | bool] = dict(type="primary", use_container_width=True)
 
     col = st.columns(3)
 
-    btn_view = col[0].button(label="**Visualizar na tela**", icon=":material/preview:", **params)
-    btn_csv = col[1].button(label="**Arquivo CSV**", icon=":material/csv:", **params)
-    btn_excel = col[2].button(label="**Arquivo Excel**", icon=":material/format_list_numbered_rtl:", **params)
+    col[0].button(label="**Visualizar na tela**", key="btn_view", icon=":material/preview:", **params)
+    col[1].button(label="**Arquivo CSV**", key="btn_csv", icon=":material/csv:", **params)
+    col[2].button(label="**Arquivo Excel**", key="btn_excel", icon=":material/format_list_numbered_rtl:", **params)
 
-    if btn_view:
-        get_report = load_report(mci, year, month, hoje)
+    if st.session_state["btn_view"]:
+        get_report: pd.DataFrame = load_report(mci, year, month, st.session_state["hoje"])
         if not get_report.empty:
-            get_title = load_data(mci)
+            get_title: tuple[int, str, int, str] = load_data(mci)
             st.write(f"**MCI:** {get_title[0]}")
             st.write(f"**Empresa:** {get_title[1]}")
             st.write(f"**CNPJ:** {int(get_title[2])}")
-            st.write(f"**Data:** {hoje:%d/%m/%Y}")
+            st.write(f"**Data:** {st.session_state['hoje']:%d/%m/%Y}")
 
-            st.dataframe(get_report, hide_index=True)
+            st.dataframe(get_report, hide_index=True, key="df_report")
 
             st.button(label="**Voltar**", key="btn_back", type="primary")
         else:
             st.toast(body="**Sem dados para exibir**", icon=":material/warning:")
 
-    if btn_csv:
-        get_report = load_report(mci, year, month, hoje)
+    if st.session_state["btn_csv"]:
+        get_report: pd.DataFrame = load_report(mci, year, month, st.session_state["hoje"])
         if not get_report.empty:
-            get_title = load_data(mci)
-            get_report.to_csv(f"static/escriturais/@deletar/{get_title[3]}-{hoje}.csv", index=False)
+            get_title: tuple[int, str, int, str] = load_data(mci)
+            get_report.to_csv(f"static/escriturais/@deletar/{get_title[3]}-"
+                              f"{st.session_state['hoje']}.csv", index=False)
 
             st.toast(body="**Arquivo CSV enviado para a pasta específica**", icon=":material/check_circle:")
         else:
             st.toast(body="**Sem dados para exibir**", icon=":material/warning:")
 
-    if btn_excel:
+    if st.session_state["btn_excel"]:
         pass
