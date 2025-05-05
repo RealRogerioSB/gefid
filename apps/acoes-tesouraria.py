@@ -49,7 +49,7 @@ def load_client() -> dict[int, str]:
         ORDER BY t2.NOM
         """,
         show_spinner="**:material/hourglass: Obtendo os dados, aguarde...**",
-        ttl=0,
+        ttl=60
     )
     return {k: v for k, v in zip(load["mci"].to_list(), load["nom"].to_list())}
 
@@ -125,7 +125,7 @@ def load_empresa(_mci: int, _data_ant: date, _data_atual: date) -> pd.DataFrame:
             data DESC
         """,
         show_spinner="**:material/hourglass: Obtendo os dados, aguarde...**",
-        ttl=0,
+        ttl=60,
         params=dict(mci=_mci, data_ant=_data_ant, data_atual=_data_atual)
     )
 
@@ -133,26 +133,24 @@ def load_empresa(_mci: int, _data_ant: date, _data_atual: date) -> pd.DataFrame:
 with st.columns(2)[0]:
     kv: dict[int, str] = load_client()
 
-    st.selectbox(label="**Empresa:**", options=kv.values(), key="empresa", on_change=state)
+    empresa: str = st.selectbox(label="**Empresa:**", options=kv.values(), on_change=state)
 
-    mci: int = next((chave for chave, valor in kv.items() if valor == st.session_state["empresa"]), 0)
+    mci: int = next((chave for chave, valor in kv.items() if valor == empresa), 0)
 
-    st.columns(3)[0].date_input("**Data:**", value=date.today(), key="today", format="DD/MM/YYYY")
+    today: date = st.columns(3)[0].date_input("**Data:**", value=date.today(), format="DD/MM/YYYY")
 
 if st.button("**Montar Declaração**", type="primary", icon=":material/picture_as_pdf:"):
-    mes: int = st.session_state["today"].month - 1 if 1 < st.session_state["today"].month <= 12 else 12
-    ano: int = st.session_state["today"].year if 1 < st.session_state["today"].month <= 12\
-        else st.session_state["today"].year - 1
+    mes: int = today.month - 1 if 1 < today.month <= 12 else 12
+    ano: int = today.year if 1 < today.month <= 12 else today.year - 1
 
-    office: pd.DataFrame = load_empresa(mci, date(ano, mes, 28), st.session_state["today"])
+    office: pd.DataFrame = load_empresa(mci, date(ano, mes, 28), today)
 
-    if not office.empty:
+    if len(office) > 0:
         office["pk"] = f"{office['mci']}-{office['cod_titulo']}-{office['custodiante']}"
         office = office.groupby("pk").first()
         office = office[office["quantidade"].ne(0)]
 
-        arquivo: str = (f"static/escriturais/@deletar/AcoesEmTesouraria-{st.session_state['empresa']} - "
-                        f"{st.session_state["today"]}.pdf")
+        arquivo: str = f"static/escriturais/@deletar/AcoesEmTesouraria-{empresa} - {today}.pdf"
 
         reportlab.rl_config.warnOnMissingFontGlyphs = 0
 
@@ -174,11 +172,11 @@ if st.button("**Montar Declaração**", type="primary", icon=":material/picture_
         cnv.drawString(40, 620, f"relativos aos serviços de escrituração das ações de emissão da empresa"
                                 f" abaixo informa a")
         cnv.drawString(40, 605, f"quantidade de ativos na tesouraria no ambiente escritural (Livro) em "
-                                f"{st.session_state["today"]:%d/%m/%Y}.")
+                                f"{today:%d/%m/%Y}.")
 
         cnpj: int = office["cpf_cnpj"].iloc[0]
 
-        cnv.drawString(40, 575, f"Razão Social: {st.session_state['empresa']}")
+        cnv.drawString(40, 575, f"Razão Social: {empresa}")
         cnv.drawString(40, 560, f"CNPJ: {cnpj}")
 
         y: int = 0
@@ -208,40 +206,39 @@ if st.button("**Montar Declaração**", type="primary", icon=":material/picture_
         st.toast("**Não identificamos ações em tesouraria para o referido cliente**", icon=":material/warning:")
 
 with st.columns(2)[0]:
-    st.text_input("Para:", key="to_addrs", help="Mais e-mails, coloca a vírgula",
-                  placeholder="Digite o e-mail de destinatário", disabled=st.session_state["state_selectbox"])
-    st.text_input("CC:", key="cc_addrs", help="Mais e-mails, coloca a vírgula",
-                  placeholder="Digite o e-mail de destinatário", disabled=st.session_state["state_selectbox"])
+    to_addrs: str = st.text_input("Para:", placeholder="Digite o e-mail de destinatário",
+                                  help="Mais e-mails, coloca a vírgula", disabled=st.session_state["state_selectbox"])
+    cc_addrs: str = st.text_input("CC:", placeholder="Digite o e-mail de destinatário",
+                                  help="Mais e-mails, coloca a vírgula", disabled=st.session_state["state_selectbox"])
 
     if st.button("**Enviar Declaração por E-mail**", type="primary", icon=":material/send:",
                  disabled=st.session_state["state_selectbox"]):
-        if any([st.session_state["to_addrs"], st.session_state["cc_addrs"]]):
+        if any([to_addrs, cc_addrs]):
             from_addr: str = "aescriturais@bb.com.br"
-            st.session_state["to_addrs"] = st.session_state["to_addrs"].replace(" ", "").split(",")
-            st.session_state["cc_addrs"] = st.session_state["cc_addrs"].replace(" ", "").split(",")
+            to_addrs: list[str] = to_addrs.replace(" ", "").split(",")
+            cc_addrs: list[str] = cc_addrs.replace(" ", "").split(",")
 
             msg: MIMEMultipart = MIMEMultipart()
             msg["From"] = from_addr
-            msg["To"] = ", ".join(st.session_state["to_addrs"])
-            msg["Cc"] = ", ".join(st.session_state["cc_addrs"])
+            msg["To"] = ", ".join(to_addrs)
+            msg["Cc"] = ", ".join(cc_addrs)
             msg["Subject"] = "DECLARAÇÃO AÇÕES EM TESOURARIA"
-            msg.attach(MIMEText(
-                """<html>
-                            <head></head>
-                            <body>
-                                <br><br>
-                                <div>Prezados,<br><br>
-                                Segue <b>em anexo</b> Declaração de Ações em Tesouraria</div>
-                                <br><br>
-                            </body>
-                        </html>""",
-                "html"
-            ))
+
+            html: str = """<html>
+                <head></head>
+                <body>
+                    <br><br>
+                    <div>Prezados,<br><br>
+                    Segue <b>em anexo</b> Declaração de Ações em Tesouraria</div>
+                    <br><br>
+                </body>
+            </html>"""
+
+            msg.attach(MIMEText(html, "html"))
 
             part: MIMEBase = MIMEBase("application", "octet-stream")
 
-            arquivo: str = (f"static/escriturais/@deletar/AcoesEmTesouraria-{st.session_state['empresa']} - "
-                            f"{st.session_state["today"]}.pdf")
+            arquivo: str = f"static/escriturais/@deletar/AcoesEmTesouraria-{empresa} - {today}.pdf"
 
             with open(arquivo, "rb") as f:
                 payload: bytes = f.read()
@@ -260,20 +257,14 @@ with st.columns(2)[0]:
             with smtplib.SMTP("smtp.bb.com.br") as server:
                 server.set_debuglevel(1)
                 try:
-                    server.sendmail(
-                        from_addr=st.session_state["from_addr"],
-                        to_addrs=st.session_state["to_addrs"] + st.session_state["cc_addrs"],
-                        msg=msg.as_string()
-                    )
-
+                    server.sendmail(from_addr, to_addrs + cc_addrs, msg.as_string())
                     st.toast("**E-mail enviado com sucesso**", icon=":material/check_circle:")
-
                     st.session_state["state_selectbox"] = True
 
                     with open("static/arquivos/protocolador/protocolador.txt", "a") as save_protocol:
                         save_protocol.write("\n")
                         save_protocol.write(f"{date.today().year}-{ultimo_protocolo}-Protocolo Ações em "
-                                            f"Tesouraria-{st.session_state['empresa']}")
+                                            f"Tesouraria-{empresa}")
 
                 except smtplib.SMTPException:
                     st.toast("**Falha ao enviar e-mail**", icon=":material/error:")

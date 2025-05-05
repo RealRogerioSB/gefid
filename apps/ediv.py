@@ -11,14 +11,15 @@ st.columns([3, 1])[0].write("##### Os arquivos EDIV e o IRMCI devem ser colocado
                             "P:\MER\Acoes_Escriturais\@deletar\ e escolhidos abaixo")
 
 col1, col2, _, _ = st.columns([1, 1, 0.5, 0.5])
-col1.file_uploader(label="**Arquivo EDIV:**", key="up_ediv", help="**Importa o arquivo de EDIV**")
-col2.file_uploader(label="**Arquivo IRMCI:**", key="up_irmci", help="**Importa o arquivo de IRMCI**")
+
+up_ediv = col1.file_uploader(label="**Arquivo EDIV:**", help="**Importa o arquivo de EDIV**")
+
+up_irmci = col2.file_uploader(label="**Arquivo IRMCI:**", help="**Importa o arquivo de IRMCI**")
 
 if st.button(label="**:material/content_cut: Separar Processos**", type="primary"):
-    if all([st.session_state["up_ediv"], st.session_state["up_irmci"]]):
+    if all([up_ediv, up_irmci]):
         # lendo ediv
-        dados: pd.DataFrame = pd.read_fwf(st.session_state["up_ediv"], colspecs=[(0, 2), (2, 397)],
-                                          names=["tp_registro", "restante"], encoding="latin")
+        dados = pd.read_fwf(up_ediv, colspecs=[(0, 2), (2, 397)], names=["tp_registro", "restante"], encoding="latin")
         # primeiro filtro
         dados = dados[dados["tp_registro"].eq(2)]
 
@@ -41,8 +42,8 @@ if st.button(label="**:material/content_cut: Separar Processos**", type="primary
         dados[dados_obj.columns] = dados_obj.apply(lambda w: w.str.strip())
 
         # lendo IRMCI
-        dfirmci: pd.DataFrame = pd.read_fwf(st.session_state["up_irmci"], colspecs=[(145, 152), (0, 15), (75, 89)],
-                                            names=["processo", "cpf_cnpj", "irmci"], encoding="latin")
+        dfirmci = pd.read_fwf(up_irmci, colspecs=[(145, 152), (0, 15), (75, 89)],
+                              names=["processo", "cpf_cnpj", "irmci"], encoding="latin")
 
         # definindo tipos do df do irmci
         dfirmci["processo"] = dfirmci["processo"].astype("int64")
@@ -63,7 +64,7 @@ if st.button(label="**:material/content_cut: Separar Processos**", type="primary
         df.insert(7, "Paraiso?", '')
 
         # criando lista de países paraísos fiscais
-        lista: list[str] = [
+        lista = [
             "ABW", "AIA", "AND", "ARE", "ASM", "ATG", "BHR", "BHS", "BLZ", "BMU", "BRB", "BRN", "COK", "CYM",
             "DJI", "DMA", "GGY", "GGY", "GIB", "GRD", "HKG", "IRL", "JEY", "JEY", "KIR", "LBN", "LBR", "LCA",
             "LIE", "MAC", "MDV", "MHL", "MSR", "MUS", "NFK", "NIU", "OMN", "PAN", "PNC", "PYF", "SHN", "SLB",
@@ -75,7 +76,7 @@ if st.button(label="**:material/content_cut: Separar Processos**", type="primary
         df.loc[~df["pais"].isin(lista), "Paraiso?"] = "Não"
 
         # criando lista de processos
-        lista_processos: list[int] = df["processo"].unique()
+        lista_processos = df["processo"].unique()
 
         # incluindo a coluna de edvi_ant e irmci
         df.insert(12, "ediv_ant", '')
@@ -84,7 +85,7 @@ if st.button(label="**:material/content_cut: Separar Processos**", type="primary
                  "valor_bruto", "valor_liquido", "evento", "irmci", "ediv_ant", "percent_ir"]]
 
         # pegando a data de hoje
-        today: str = str(date.today()).replace("-", '')
+        today = str(date.today()).replace("-", '')
 
         for x in range(len(lista_processos)):
             # separando os dataframes por processos
@@ -101,10 +102,8 @@ if st.button(label="**:material/content_cut: Separar Processos**", type="primary
             globals()[nome_df].drop(["isin"], axis=1, inplace=True)
 
             # Criando a engine usando XlsxWriter com o Pandas.
-            writer = pd.ExcelWriter(
-                f"static/escriturais/@deletar/EDIV {isin[2:6]} {str(lista_processos[x])} {today}.xlsx",
-                engine="xlsxwriter"
-            )
+            writer = pd.ExcelWriter(f"static/escriturais/@deletar/EDIV {isin[2:6]} {str(lista_processos[x])} "
+                                    f"{today}.xlsx", engine="xlsxwriter")
 
             # criando o workbook e worksheets na engine xlsxwriter
             workbook = writer.book

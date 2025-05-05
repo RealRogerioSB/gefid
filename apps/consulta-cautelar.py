@@ -17,7 +17,6 @@ def load_acionista(key: str, value: int | str) -> pd.DataFrame:
     return engine.query(
         sql=f"SELECT * FROM DB2I13E5.SISTEMA_ANTIGO_ACIONISTAS WHERE {key.upper()} = :value",
         show_spinner=False,
-        ttl=0,
         params=dict(value=value)
     )
 
@@ -28,7 +27,6 @@ def load_certificado(value: tuple) -> pd.DataFrame:
         sql=f"""SELECT DISTINCT INSCRICAO, NUMERO_CERT, NR_PRIM_ACAO, DATA_EMIS, QT_ACOES
                 FROM DB2I13E5.SISTEMA_ANTIGO_CERTIFICADOS
                 WHERE INSCRICAO IN {value}""",
-        ttl=0,
         show_spinner=False,
     )
 

@@ -26,6 +26,13 @@ pdfmetrics.registerFont(TTFont("VeraBI", "VeraBI.ttf"))
 
 st.cache_data.clear()
 
+st.markdown("""
+<style>
+    [data-testid='stHeader'] {display: none;}
+    #MainMenu {visibility: hidden} footer {visibility: hidden}
+</style>
+""", unsafe_allow_html=True)
+
 st.subheader(":material/hide_source: Cancelamento de CEPAC")
 
 engine: SQLConnection = st.connection(name="DB2", type=SQLConnection)
@@ -46,7 +53,7 @@ def load_extract_mci(mci: int, active: int) -> pd.DataFrame:
         ORDER BY t1.DT_MVTC
         """,
         show_spinner=False,
-        ttl=0,
+        ttl=60,
         params=dict(mci=mci, active=active),
     )
 
@@ -68,7 +75,7 @@ def load_extract_cnpj(cnpj: int, active: int) -> pd.DataFrame:
         ORDER BY t1.DT_MVTC
         """,
         show_spinner=False,
-        ttl=0,
+        ttl=60,
         params=dict(cnpj=cnpj, active=active),
     )
 
@@ -87,7 +94,7 @@ def load_cadastro(field: str, value: int) -> pd.DataFrame:
         WHERE t1.{field.upper()} = :value
         """,
         show_spinner=False,
-        ttl=0,
+        ttl=60,
         params=dict(value=value),
     )
 
@@ -229,15 +236,14 @@ if st.session_state.btn_montar:
                         msgcp["To"] = st.session_state["to_email"]
                         msgcp["Cc"] = st.session_state["cc_email"]
 
-                        msgcp.attach(MIMEText(
-                            """<html><head></head><body>
-                                <br><br>
-                                <div>Prezados,<br><br>
-                                Segue <b>em anexo</b> Declaração de Cancelamento de CEPAC</div>
-                                <br><br>
-                            </body></html>""",
-                            "html"
-                        ))
+                        html = """<html><head></head><body>
+                        <br><br>
+                        <div>Prezados,<br><br>
+                        Segue <b>em anexo</b> Declaração de Cancelamento de CEPAC</div>
+                        <br><br>
+                        </body></html>"""
+
+                        msgcp.attach(MIMEText(html, "html"))
 
                         part = MIMEBase("application", "octet-stream")
                         part.set_payload(open(arquivo, "rb").read())
@@ -249,14 +255,10 @@ if st.session_state.btn_montar:
                             server.set_debuglevel(1)
 
                             try:
-                                server.sendmail(
-                                    from_addr=st.session_state["from_email"],
-                                    to_addrs=st.session_state["to_email"] + st.session_state["cc_email"],
-                                    msg=msgcp.as_string()
-                                )
-
+                                server.sendmail(st.session_state["from_email"],
+                                                st.session_state["to_email"] + st.session_state["cc_email"],
+                                                msgcp.as_string())
                                 st.toast("**Declaração de Cancelamento de CEPAC enviado por email com sucesso!**",
                                          icon=":material/check_circle:")
-
                             except smtplib.SMTPException:
                                 st.toast("**Houve falha ao enviar e-mails...**", icon=":material/error:")
