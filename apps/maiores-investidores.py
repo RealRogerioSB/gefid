@@ -229,7 +229,7 @@ if st.session_state["montar"]:
             Image(filename="static/imagens/bb.jpg", width=300, height=38),
             Spacer(30, 30),
             Paragraph(f"Diretoria Operações - {date.today()}/DIEST-{last_protocol}", header),
-            Paragraph(f"Rio de Janeiro, {date.today():%d/%m/%Y}", header),
+            Paragraph(f"Rio de Janeiro, {date.today():%d de %B de %Y}", header),
             Spacer(30, 30),
             Paragraph("Ao (À)", header),
             Paragraph(nome_empresa, header),
@@ -280,7 +280,7 @@ if st.session_state["montar"]:
 
         st.toast("**Declaração gerada com sucesso**", icon=":material/check_circle:")
 
-        time.sleep(1.5)
+        time.sleep(1)
 
         st.session_state["state_selectbox"] = False
         st.rerun()
@@ -337,12 +337,13 @@ if st.session_state["send_email"]:
                 st.toast("Houve falha ao enviar e-mail...", icon=":material/warning:")
                 st.stop()
 
-        with open("static/arquivos/protocolador/protocolador.txt", "a") as new_protocol:
-            new_protocol.write(f"{date.today().year}-{last_protocol}-MaioresInvestidores - {nome_empresa}")
+            else:
+                with open("static/arquivos/protocolador/protocolador.txt", "a") as new_protocol:
+                    new_protocol.write(f"{date.today().year}-{last_protocol}-MaioresInvestidores - {nome_empresa}")
 
-        st.toast("**Declaração enviada com sucesso**", icon=":material/check_circle:")
+                st.toast("**Declaração enviada com sucesso**", icon=":material/check_circle:")
 
-        time.sleep(2)
+                time.sleep(1)
 
-        st.session_state["state_selectbox"] = True
-        st.rerun()
+                st.session_state["state_selectbox"] = True
+                st.rerun()
