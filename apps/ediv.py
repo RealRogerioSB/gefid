@@ -11,9 +11,7 @@ st.columns([3, 1])[0].write("##### Os arquivos EDIV e o IRMCI devem ser colocado
                             "P:\MER\Acoes_Escriturais\@deletar\ e escolhidos abaixo")
 
 col1, col2, _, _ = st.columns([1, 1, 0.5, 0.5])
-
 up_ediv = col1.file_uploader(label="**Arquivo EDIV:**", help="**Importa o arquivo de EDIV**")
-
 up_irmci = col2.file_uploader(label="**Arquivo IRMCI:**", help="**Importa o arquivo de IRMCI**")
 
 if st.button(label="**:material/content_cut: Separar Processos**", type="primary"):
@@ -175,5 +173,6 @@ if st.button(label="**:material/content_cut: Separar Processos**", type="primary
 
             writer.close()
             workbook.close()
+
     else:
         st.toast("**Precisa de 2 arquivos para importar...**", icon=":material/warning:")

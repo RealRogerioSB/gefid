@@ -11,29 +11,31 @@ with st.columns(2)[0]:
     st.markdown("##### Certifique-se que não existam outros arquivos com a mesma extensão"
                 " além daqueles que deseja que sejam processadas")
 
-if st.button(label="**:material/description: Gerar 543**", type="primary"):
-    with st.spinner("**Criando tabela, aguarde...**", show_time=True):
-        diretorio_destino = "/mnt/escriturais/@deletar/"
-        diretorio_origem = "static/escriturais/@deletar"
+    st.button(label="**Gerar 543**", key="gerar", type="primary", icon=":material/description:")
 
-        tamanho = 1048000
+if st.session_state["gerar"]:
+    with st.spinner("**Criando tabela, aguarde...**", show_time=True):
+        diretorio_destino: str = "/mnt/escriturais/@deletar/"
+        diretorio_origem: str = "static/escriturais/@deletar"
+
+        tamanho: int = 1048000
 
         # função para retirar pontos e vírgulas dos números para poder trabalhar como float
-        def replace_comma_and_dot(_x):
+        def replace_comma_and_dot(_x: str) -> str:
             return _x.replace(".", "").replace(",", "")
 
         # função para substituir vírgula por ponto para poder trabalhar como float
-        def replace_comma_for_dot(_x):
+        def replace_comma_for_dot(_x: str) -> str:
             return _x.replace(",", ".")
 
         # função para eliminar vírgulas, traços e barras co CPF/CNPJ
-        def replace_comma_for_nothing(_x):
+        def replace_comma_for_nothing(_x: str) -> str:
             for char in [".", ",", "-", "/"]:
                 _x = _x.replace(char, "")
             return _x
 
         # pegando os arquivos com início "BBM.AEBF543A."
-        all_files = glob.glob(f"{diretorio_origem}/*.AEBF543A.*")
+        all_files: list[str] = glob.glob(f"{diretorio_origem}/*.AEBF543A.*")
 
         len(all_files)
 
@@ -43,12 +45,12 @@ if st.button(label="**:material/description: Gerar 543**", type="primary"):
             st.stop()
         else:
             # criando a lista
-            li = []
+            li: list = []
 
             # iterando a leitura do Pandas em todos os arquivos da pasta
             for filename in all_files:
-                df = pd.read_fwf(
-                    filename,
+                df: pd.DataFrame = pd.read_fwf(
+                    filepath_or_buffer=filename,
                     colspecs=[(29, 33), (34, 38), (43, 53), (54, 58), (117, 121), (123, 144), (145, 154),
                               (155, 173), (174, 214), (220, 240), (241, 245), (246, 250), (251, 253),
                               (254, 260), (268, 274), (282, 301), (302, 322), (323, 341), (378, 400),

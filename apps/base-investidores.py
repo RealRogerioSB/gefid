@@ -1,4 +1,5 @@
-from datetime import date
+import io
+from datetime import date, timedelta
 
 import pandas as pd
 import streamlit as st
@@ -11,29 +12,31 @@ engine = st.connection(name="DB2", type=SQLConnection)
 st.subheader(":material/account_balance: Base de Investidores")
 
 
-@st.cache_data(show_spinner=":material/hourglass: Obtendo os dados, aguarde...")
+@st.cache_data(show_spinner=False)
 def load_active(active: str) -> dict[int, str]:
-    df = engine.query(
+    load = engine.query(
         sql=f"""
             SELECT
                 t1.CD_CLI_EMT AS MCI,
-                t2.NOM
+                STRIP(t2.NOM) AS NOM
             FROM
                 DB2AEB.PRM_EMP AS t1
                 INNER JOIN DB2MCI.CLIENTE AS t2
                     ON t2.COD = t1.CD_CLI_EMT
             WHERE
-                t1.DT_ECR_CTR IS {active}
+                t1.DT_ECR_CTR IS {active.upper()}
+            ORDER BY
+                STRIP(t2.NOM)
         """,
-        show_spinner=False,
-        ttl=60,
+        show_spinner="**:material/hourglass: Carregando a listagem da empresa, aguarde...**",
+        ttl=0,
     )
-    return {k: v for k, v in zip(df["mci"].to_list(), df["nom"].to_list())}
+    return {k: v for k, v in zip(load["mci"].to_list(), load["nom"].to_list())}
 
 
-@st.cache_data(show_spinner=":material/hourglass: Obtendo os dados, aguarde...")
-def load_report(_mci: int, _year: int, _month: int, _data: date) -> pd.DataFrame:
-    base = engine.query(
+@st.cache_data(show_spinner=False)
+def load_report(_mci: int, _data_ant: date, _data: date):
+    load = engine.query(
         sql="""
             SELECT
                 t5.CD_CLI_ACNT AS MCI,
@@ -53,7 +56,7 @@ def load_report(_mci: int, _year: int, _month: int, _data: date) -> pd.DataFrame
                 END AS TIPO,
                 t5.DATA,
                 t5.CD_TIP_TIT AS COD_TITULO,
-                CONCAT(t7.SG_TIP_TIT, t7.CD_CLS_TIP_TIT) AS SIGLA,
+                CONCAT(STRIP(t7.SG_TIP_TIT), STRIP(t7.CD_CLS_TIP_TIT)) AS SIGLA,
                 CAST(t5.QUANTIDADE AS BIGINT) AS QUANTIDADE,
                 CASE 
                     WHEN t5.CD_CLI_CSTD = 903485186 THEN 'ESCRITURAL'
@@ -100,36 +103,30 @@ def load_report(_mci: int, _year: int, _month: int, _data: date) -> pd.DataFrame
                 LEFT JOIN DB2AEB.VCL_ACNT_BLS t8
                     ON t5.CD_CLI_ACNT = t8.CD_CLI_ACNT
             WHERE
-                DATA BETWEEN :anterior AND :data
+                DATA BETWEEN :data_ant AND :data
             ORDER BY
                 CAST(t5.CD_CLI_ACNT AS INTEGER),
                 DATA DESC
         """,
         show_spinner=False,
-        ttl=60,
-        params=dict(
-            mci=_mci,
-            anterior=date(_year, _month, 28).strftime("%Y-%m-%d"),
-            data=_data.strftime("%Y-%m-%d")
-        ),
+        ttl=0,
+        params=dict(mci=_mci, data_ant=_data_ant, data=_data.strftime("%Y-%m-%d")),
     )
-    base.columns = [str(columns).upper() for columns in base.columns]
-    base["PK"] = f"{base['MCI']}-{base['COD_TITULO']}-{base['CUSTODIANTE']}"
-    base = base.groupby("PK").first()
-    base = base[~base["MCI"].isin([205007939, 211684707]) & base["QUANTIDADE"].ne(0)]
-    base["COD_TITULO"] = base["COD_TITULO"].astype(str)
-    base.reset_index(drop=True, inplace=True)
+    load.columns = [str(columns).upper() for columns in load.columns]
+    load["COD_TITULO"] = load["COD_TITULO"].astype(str)
+    load = load[~load["MCI"].isin([205007939, 211684707]) & load["QUANTIDADE"].ne(0)]
+    load.reset_index(inplace=True)
 
-    dfixo = base[["MCI", "INVESTIDOR", "CPF_CNPJ", "TIPO"]].copy()
+    dfixo = load[["MCI", "INVESTIDOR", "CPF_CNPJ", "TIPO"]].copy()
     dfixo.drop_duplicates(subset=["MCI"], inplace=True)
 
     lista_tit = []
 
-    for x in (base["COD_TITULO"] + base["SIGLA"]).unique():
-        dfx = base[(base["COD_TITULO"] + base["SIGLA"]).eq(x)].copy()
-        dfx.reset_index(drop=True, inplace=True)
+    for xx in (load["COD_TITULO"] + load["SIGLA"]).unique():
+        dfx = load.loc[(load["COD_TITULO"] + load["SIGLA"]) == xx].copy()
+        dfx.reset_index(inplace=True)
 
-        tipo = dfx["SIGLA"][0] + dfx["COD_TITULO"].astype(str)[0]
+        tipo = f"{dfx['SIGLA'].iloc[0]} {dfx['COD_TITULO'].iloc[0]}"
 
         dfbb = dfx[dfx["CUSTODIANTE"].eq("ESCRITURAL")].copy()[["MCI", "QUANTIDADE"]]
         dfbb.rename(columns={"QUANTIDADE": "BB_" + tipo}, inplace=True)
@@ -147,24 +144,27 @@ def load_report(_mci: int, _year: int, _month: int, _data: date) -> pd.DataFrame
 
     cols = ["MCI", "INVESTIDOR", "CPF_CNPJ"]
 
-    for x in lista_tit:
-        dfixo["TOTAL_" + x] = dfixo["BB_" + x] + dfixo["B3_" + x]
-        cols.extend(["BB_" + x, "B3_" + x, "TOTAL_" + x])
+    for tit in lista_tit:
+        dfixo[f"TOTAL_{tit}"] = dfixo[f"BB_{tit}"] + dfixo[f"B3_{tit}"]
+        cols.extend([f"BB_{tit}", f"B3_{tit}", f"TOTAL_{tit}"])
 
     dfixo = dfixo[cols]
 
-    return dfixo
+    return dfixo, lista_tit
 
 
-@st.cache_data(show_spinner=":material/hourglass: Obtendo os dados, aguarde...")
+@st.cache_data(show_spinner=False)
 def load_data(_mci: int) -> tuple[int, str, int, str]:
-    cadastro = engine.query(
+    load = engine.query(
         sql="""
             SELECT
                 t1.CD_CLI_EMT AS MCI,
-                t1.SG_EMP AS SIGLA,
+                STRIP(t1.SG_EMP) AS SIGLA,
                 STRIP(t2.NOM) AS EMPRESA,
-                t2.COD_CPF_CGC AS CNPJ
+                CASE
+                    WHEN t2.COD_TIPO = 2 THEN LPAD(t2.COD_CPF_CGC, 14, '0')
+                    ELSE LPAD(t2.COD_CPF_CGC, 11, '0')
+                END AS CNPJ
             FROM
                 DB2AEB.PRM_EMP t1
                 INNER JOIN DB2MCI.CLIENTE t2
@@ -173,36 +173,30 @@ def load_data(_mci: int) -> tuple[int, str, int, str]:
                 t1.CD_CLI_EMT = :mci
         """,
         show_spinner=False,
-        ttl=60,
+        ttl=0,
         params=dict(mci=_mci),
     )
-    cadastro.columns = [str(columns).upper() for columns in cadastro.columns]
 
-    mci_empresa = cadastro["MCI"][0]
-    nome = cadastro["EMPRESA"][0]
-    cnpj = cadastro["CNPJ"][0]
-    sigla = cadastro["SIGLA"][0]
-
-    return mci_empresa, nome, cnpj, sigla
+    return load["mci"].iloc[0], load["empresa"].iloc[0], load["cnpj"].iloc[0], load["sigla"].iloc[0]
 
 
-option_active = st.radio(label="**Situação de Clientes:**", options=["ativos", "inativos"])
+st.radio(label="**Situação de Clientes:**", options=["ativos", "inativos"], key="option_active")
 
-kv = load_active("NULL" if option_active == "ativos" else "NOT NULL")
+kv: dict[int, str] = load_active("null" if st.session_state["option_active"] == "ativos" else "not null")
 
 with st.columns(2)[0]:
-    empresa = st.selectbox(
-        label="**Clientes ativos:**" if option_active == "ativos" else "**Clientes inativos:**",
+    st.selectbox(
+        label="**Clientes ativos:**" if st.session_state["option_active"] == "ativos" else "**Clientes inativos:**",
         options=sorted(kv.values()),
+        key="empresa",
     )
 
     with st.columns(3)[0]:
-        hoje = st.date_input(label="**Data:**", value=date.today(), format="DD/MM/YYYY")
+        st.date_input(label="**Data:**", value=date.today(), key="data", format="DD/MM/YYYY")
 
-mci = next((chave for chave, valor in kv.items() if valor == empresa), 0)
+mci = next((chave for chave, valor in kv.items() if valor == st.session_state["empresa"]), 0)
 
-year = hoje.year - 1 if hoje.month == 1 else hoje.year
-month = 12 if hoje.month == 1 else hoje.month - 1
+data_ant: date = (st.session_state["data"].replace(day=1) - timedelta(days=1)).replace(day=28)
 
 with st.columns(2)[0]:
     st.divider()
@@ -210,35 +204,167 @@ with st.columns(2)[0]:
     params = dict(type="primary", use_container_width=True)
 
     col = st.columns(3)
+    col[0].button(label="**Visualizar na tela**", key="view", icon=":material/preview:", **params)
+    col[1].button(label="**Baixar CSV**", key="csv", icon=":material/download:", **params)
+    col[2].button(label="**Baixar Excel**", key="xlsx", icon=":material/download:", **params)
 
-    btn_view = col[0].button(label="**Visualizar na tela**", icon=":material/preview:", **params)
-    btn_csv = col[1].button(label="**Arquivo CSV**", icon=":material/csv:", **params)
-    btn_excel = col[2].button(label="**Arquivo Excel**", icon=":material/format_list_numbered_rtl:", **params)
+if st.session_state["view"]:
+    with st.spinner("**:material/hourglass: Preparando os dados para exibir, aguarde...**", show_time=True):
+        get_report = load_report(mci, data_ant, st.session_state["data"])[0]
 
-    if btn_view:
-        get_report = load_report(mci, year, month, hoje)
         if not get_report.empty:
             get_title = load_data(mci)
             st.write(f"**MCI:** {get_title[0]}")
             st.write(f"**Empresa:** {get_title[1]}")
             st.write(f"**CNPJ:** {int(get_title[2])}")
-            st.write(f"**Data:** {hoje:%d/%m/%Y}")
+            st.write(f"**Data:** {st.session_state['data']:%d/%m/%Y}")
 
-            st.dataframe(get_report, hide_index=True)
+            st.columns([2, 1])[0].dataframe(get_report, hide_index=True)
 
-            st.button(label="**Voltar**", key="btn_back", type="primary")
+            st.button(label="**Voltar**", key="back_view", type="primary", icon=":material/reply:")
+
         else:
-            st.toast(body="**Sem dados para exibir**", icon=":material/warning:")
+            st.toast(body="**Não há dados para exibir...**", icon=":material/error:")
 
-    if btn_csv:
-        get_report = load_report(mci, year, month, hoje)
+if st.session_state["csv"]:
+    with st.spinner("**:material/hourglass: Preparando os dados para baixar, aguarde...**", show_time=True):
+        get_report = load_report(mci, data_ant, st.session_state["data"])[0]
+
         if not get_report.empty:
             get_title = load_data(mci)
-            get_report.to_csv(f"static/escriturais/@deletar/{get_title[3]}-{hoje}.csv", index=False)
 
-            st.toast(body="**Arquivo CSV enviado para a pasta específica**", icon=":material/check_circle:")
+            st.toast(body="**Arquivo CSV pronto para baixar**", icon=":material/check_circle:")
+
+            st.download_button(
+                label="Baixar CSV",
+                data=get_report.to_csv(index=False).encode("utf-8"),
+                file_name=f"{get_title[3]}-{st.session_state['data']}.csv",
+                mime="text/csv",
+                key="download_csv",
+                type="primary",
+                icon=":material/download:",
+            )
+
+            st.button(label="**Voltar**", key="back", type="primary", icon=":material/reply:")
+
         else:
-            st.toast(body="**Sem dados para exibir**", icon=":material/warning:")
+            st.toast(body="**Não há dados para baixar...**", icon=":material/error:")
 
-    if btn_excel:
-        pass
+if st.session_state["xlsx"]:
+    with st.spinner("**:material/hourglass: Preparando os dados para baixar, aguarde...**", show_time=True):
+        get_report = load_report(mci, data_ant, st.session_state["data"])[0]
+        list_tit = load_report(mci, data_ant, st.session_state["data"])[1]
+
+        if not get_report.empty:
+            get_title = load_data(mci)
+
+            path_xlsx: io.BytesIO = io.BytesIO()
+
+            writer = pd.ExcelWriter(path_xlsx, engine="xlsxwriter")
+
+            if len(get_report) <= 1000000:
+                get_report.to_excel(writer, sheet_name="1", startrow=5, header=False, index=False)
+                workbook = writer.book
+                worksheet1 = writer.sheets["1"]
+
+            elif 1000000 < len(get_report) <= 2000000:
+                get_report[:1000000].to_excel(writer, sheet_name="1", startrow=5, header=False, index=False)
+                get_report[1000000:].to_excel(writer, sheet_name="2", startrow=2, header=False, index=False)
+                workbook = writer.book
+                worksheet1 = writer.sheets["1"]
+                worksheet2 = writer.sheets["2"]
+
+            elif len(get_report) > 2000000:
+                get_report[:1000000].to_excel(writer, sheet_name="1", startrow=5, header=False, index=False)
+                get_report[1000000:2000000].to_excel(writer, sheet_name="2", startrow=2, header=False, index=False)
+                get_report[2000000:].to_excel(writer, sheet_name="3", startrow=2, header=False, index=False)
+                workbook = writer.book
+                worksheet1 = writer.sheets["1"]
+                worksheet2 = writer.sheets["2"]
+                worksheet3 = writer.sheets["3"]
+
+            # criando formatos
+            number_format = workbook.add_format(dict(num_format=0))
+
+            titulo_1 = workbook.add_format(dict(bold=True, align="left", bg_color="#025AA5", right=2, font_size=14,
+                                                font_color="white"))
+            titulo_2 = workbook.add_format(dict(bold=True, align="left", bg_color="#025AA5", right=2, bottom=2,
+                                                font_size=14, font_color="white"))
+
+            texto_format = workbook.add_format(dict(align="left", bold=True, bg_color="#FFED00"))
+
+            # formatando colunas (largura e número)
+            worksheet1.set_column(0, 0, 12, number_format)
+            worksheet1.set_column(1, 1, 40)
+            worksheet1.set_column(2, 2, 16, number_format)
+
+            # criando os dados básicos do emissor
+            worksheet1.merge_range("A1:C1", f"Emissor......................: {get_title[1]}", titulo_1)
+            worksheet1.merge_range("A2:C2", f"CNPJ...........................: {int(get_title[2])}", titulo_1)
+            worksheet1.merge_range("A3:C3", f"Data de Liquidação.....: {st.session_state['data']:%d/%m/%Y}", titulo_2)
+
+            # escrevendo os nomes das colunas no xlsx
+            worksheet1.write("A5", "MCI", texto_format)
+            worksheet1.write("B5", "Nome", texto_format)
+            worksheet1.write("C5", "CPF/CNPJ", texto_format)
+
+            # escrevendo os nomes dos títulos nas colunas e pegando a quantidade de títulos
+            for x in range(len(list_tit)):
+                worksheet1.set_column(3, 3 + (x * 3), 13, number_format)
+                worksheet1.set_column(4, 4 + (x * 3), 13, number_format)
+                worksheet1.set_column(5, 5 + (x * 3), 13, number_format)
+                worksheet1.write(4, 3 + (x * 3), list_tit[x] + " BB", texto_format)
+                worksheet1.write(4, 4 + (x * 3), list_tit[x] + " B3", texto_format)
+                worksheet1.write(4, 5 + (x * 3), list_tit[x] + " Total", texto_format)
+
+            if len(get_report) > 1000000:
+                # formatando colunas (largura e número)
+                worksheet2.set_column(0, 0, 12, number_format)
+                worksheet2.set_column(1, 1, 40)
+                worksheet2.set_column(2, 2, 16, number_format)
+
+                # escrevendo os nomes das colunas no xlsx
+                worksheet2.write("A2", "MCI", texto_format)
+                worksheet2.write("B2", "Nome", texto_format)
+                worksheet2.write("C2", "CPF/CNPJ", texto_format)
+
+                # escrevendo os nomes dos títulos nas colunas e pegando a quantidade de títulos
+                for x in range(len(list_tit)):
+                    worksheet2.set_column(3, 3 + (x * 3), 13, number_format)
+                    worksheet2.set_column(4, 4 + (x * 3), 13, number_format)
+                    worksheet2.set_column(5, 5 + (x * 3), 13, number_format)
+                    worksheet2.write(1, 3 + (x * 3), list_tit[x] + " BB", texto_format)
+                    worksheet2.write(1, 4 + (x * 3), list_tit[x] + " B3", texto_format)
+                    worksheet2.write(1, 5 + (x * 3), list_tit[x] + " Total", texto_format)
+
+            # criando filtro
+            worksheet1.autofilter(4, 0, 4, 2 + (3 * len(list_tit)))
+
+            if len(get_report) > 1000000:
+                worksheet2.autofilter(1, 0, 1, 2 + (3 * len(list_tit)))
+
+            # Congelando as primeiras 5 linhas
+            worksheet1.freeze_panes(5, 0)
+
+            if len(get_report) > 1000000:
+                worksheet2.freeze_panes(2, 0)
+
+            workbook.close()
+            writer.close()
+
+            st.toast(body="**Arquivo XLSX pronto para baixar**", icon=":material/check_circle:")
+
+            st.download_button(
+                label="Baixar XLSX",
+                data=path_xlsx,
+                file_name=f"{get_title[3]}-{st.session_state['data']}.xlsx",
+                mime="application/vnd.ms-excel",
+                key="download_xlsx",
+                type="primary",
+                icon=":material/download:"
+            )
+
+            st.button(label="**Voltar**", key="back_xlsx", type="primary", icon=":material/reply:")
+
+        else:
+            st.toast("**Não há dados para baixar...**", icon=":material/error:")

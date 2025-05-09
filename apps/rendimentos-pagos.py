@@ -1,3 +1,5 @@
+import io
+import zipfile
 from datetime import date
 
 import pandas as pd
@@ -11,7 +13,7 @@ engine = st.connection(name="DB2", type=SQLConnection)
 st.subheader(":material/paid: Rendimentos Pagos")
 
 
-@st.cache_data(show_spinner=":material/hourglass: Obtendo os dados, aguarde...")
+@st.cache_data(show_spinner=False)
 def load_active(active: str) -> dict[int, str]:
     df = engine.query(
         sql=f"""
@@ -25,13 +27,13 @@ def load_active(active: str) -> dict[int, str]:
             WHERE
                 t1.DT_ECR_CTR IS {active}
         """,
-        show_spinner=False,
-        ttl=60,
+        show_spinner=":material/hourglass: Preparando a lista de empresa, aguarde...",
+        ttl=0,
     )
     return {k: v for k, v in zip(df["mci"].to_list(), df["nom"].to_list())}
 
 
-@st.cache_data(show_spinner=":material/hourglass: Obtendo os dados, aguarde...")
+@st.cache_data(show_spinner=False)
 def load_report(_mci: int, _ano: int, _mes: int) -> pd.DataFrame:
     return engine.query(
         sql="""
@@ -64,12 +66,12 @@ def load_report(_mci: int, _ano: int, _mes: int) -> pd.DataFrame:
                 t1.DT_MVT_DRT
         """,
         show_spinner=False,
-        ttl=60,
+        ttl=0,
         params=dict(mci=_mci, ano=_ano, mes=_mes),
     )
 
 
-@st.cache_data(show_spinner=":material/hourglass: Obtendo os dados, aguarde...")
+@st.cache_data(show_spinner=False)
 def load_data(_mci: int) -> pd.DataFrame:
     return engine.query(
         sql="""
@@ -77,7 +79,10 @@ def load_data(_mci: int) -> pd.DataFrame:
                 t1.CD_CLI_EMT AS MCI,
                 t1.SG_EMP AS SIGLA,
                 t2.NOM AS EMPRESA,
-                t2.COD_CPF_CGC AS CNPJ
+                CASE
+                    WHEN t2.COD_TIPO = 2 THEN LPAD(t2.COD_CPF_CGC, 14, '0')
+                    ELSE LPAD(t2.COD_CPF_CGC, 11, '0')
+                END AS CNPJ
             FROM
                 DB2AEB.PRM_EMP t1
                 INNER JOIN DB2MCI.CLIENTE t2
@@ -86,24 +91,27 @@ def load_data(_mci: int) -> pd.DataFrame:
                 t1.CD_CLI_EMT = :mci
         """,
         show_spinner=False,
-        ttl=60,
+        ttl=0,
         params=dict(mci=_mci),
     )
 
 
-option_active = st.radio(label="**Situação de Clientes:**", options=["ativos", "inativos"])
+st.radio(label="**Situação de Clientes:**", options=["ativos", "inativos"], key="option_active")
 
-kv = load_active("NULL") if option_active == "ativos" else load_active("NOT NULL")
+kv = load_active("NULL") if st.session_state["option_active"] == "ativos" else load_active("NOT NULL")
 
 with st.columns(2)[0]:
-    empresa = st.selectbox(label="**Clientes ativos:**" if option_active == "ativos" else "**Clientes inativos:**",
-                           options=sorted(kv.values()))
+    st.selectbox(
+        label="**Clientes ativos:**" if st.session_state["option_active"] == "ativos" else "**Clientes inativos:**",
+        options=sorted(kv.values()),
+        key="empresa",
+    )
 
-    mci = next((chave for chave, valor in kv.items() if valor == empresa), 0)
+    mci = next((chave for chave, valor in kv.items() if valor == st.session_state["empresa"]), 0)
 
     col = st.columns([2, 1, 1])
-    mes = col[0].slider(label="**Mês:**", min_value=1, max_value=12, value=date.today().month)
-    ano = col[1].selectbox(label="**Ano:**", options=range(date.today().year, 1995, -1))
+    col[0].slider(label="**Mês:**", min_value=1, max_value=12, value=date.today().month, key="mês")
+    col[1].selectbox(label="**Ano:**", options=range(date.today().year, 1995, -1), key="ano")
 
     params = dict(type="primary", use_container_width=True)
 
@@ -111,56 +119,109 @@ with st.columns(2)[0]:
 
     col = st.columns(3)
 
-    btn_view = col[0].button(label="**Visualizar na tela**", icon=":material/preview:", **params)
-    btn_csv = col[1].button(label="**Arquivo CSV**", icon=":material/csv:", **params)
-    btn_excel = col[2].button(label="**Arquivo Excel**", icon=":material/format_list_numbered_rtl:", **params)
+    col[0].button(label="**Visualizar na tela**", key="view", icon=":material/preview:", **params)
+    col[1].button(label="**Baixar CSV**", key="csv", icon=":material/download:", **params)
+    col[2].button(label="**Baixar Excel**", key="xlsx", icon=":material/download:", **params)
 
-if btn_view:
-    get_view = load_report(mci, ano, mes)
-    if not get_view.empty:
-        get_data = load_data(mci)
-        st.write(f"**MCI:** {get_data['mci'][0]}")
-        st.write(f"**EMPRESA:** {get_data['empresa'][0]}")
-        st.write(f"**CNPJ:** {get_data['cnpj'][0]}")
-        st.write(f"**MÊS/ANO:** {mes:02d}/{ano}")
-        st.write(f"**TOTAL BRUTO:** R$ {float(get_view['valor'].sum()):_.2f}"
-                 .replace(".", ",").replace("_", "."))
-        st.write(f"**TOTAL IR:** R$ {float(get_view['valor_ir'].sum()):_.2f}"
-                 .replace(".", ",").replace("_", "."))
-        st.write(f"**TOTAL LÍQUIDO:** R$ {float(get_view['valor_liquido'].sum()):_.2f}"
-                 .replace(".", ",").replace("_", "."))
-        st.dataframe(get_view)
-    else:
-        st.toast(body="**Sem dados para exibir**", icon=":material/warning:")
+if st.session_state["view"]:
+    with st.spinner("**:material/hourglass: Preparando os dados para exibir, aguarde...**", show_time=True):
+        get_view = load_report(mci, st.session_state["ano"], st.session_state["mês"])
+        if not get_view.empty:
+            get_data = load_data(mci)
 
-if btn_csv:
-    get_csv = load_report(mci, ano, mes)
-    if not get_csv.empty:
-        sigla = load_data(mci)["SIGLA"][0]
-        get_csv.write_csv(file=f"static/escriturais/@deletar/{sigla}-{mes}-{ano}-Rendimentos Pagos.csv")
-    else:
-        st.toast(body="**Sem dados para exibir**", icon=":material/warning:")
+            st.write(f"**MCI:** {get_data['mci'].iloc[0]}")
+            st.write(f"**EMPRESA:** {get_data['empresa'].iloc[0]}")
+            st.write(f"**CNPJ:** {get_data['cnpj'].iloc[0]}")
+            st.write(f"**MÊS/ANO:** {st.session_state['mês']:02d}/{st.session_state['ano']}")
+            st.write(f"**TOTAL BRUTO:** R$ {float(get_view['valor'].sum()):_.2f}"
+                     .replace(".", ",").replace("_", "."))
+            st.write(f"**TOTAL IR:** R$ {float(get_view['valor_ir'].sum()):_.2f}"
+                     .replace(".", ",").replace("_", "."))
+            st.write(f"**TOTAL LÍQUIDO:** R$ {float(get_view['valor_liquido'].sum()):_.2f}"
+                     .replace(".", ",").replace("_", "."))
 
-if btn_excel:
-    get_xlsx = load_report(mci, ano, mes)
-    if not get_xlsx.empty:
-        sigla = load_data(mci)["SIGLA"][0]
-        if len(get_xlsx) <= int(1e6):
-            caminho_saida = f"static/escriturais/@deletar/{sigla}-{mes}-{ano}-Rendimentos Pagos.xlsx"
-            get_xlsx.to_excel(excel_writer=caminho_saida, index=False, engine="xlsxwriter")
+            st.dataframe(get_view)
 
-            st.toast(body="**Arquivo XLSX enviado para a pasta específica**", icon=":material/check_circle:")
         else:
-            caminho_saida_1 = f"static/escriturais/@deletar/{sigla}-{mes}-{ano}-Rendimentos Pagos-parte1.xlsx"
-            get_xlsx[:int(1e6)].to_excel(excel_writer=caminho_saida_1, index=False, engine="xlsxwriter")
+            st.toast(body="**Não há dados para exibir...**", icon=":material/error:")
 
-            caminho_saida_2 = f"static/escriturais/@deletar/{sigla}-{mes}-{ano}-Rendimentos Pagos-parte2.xlsx"
-            get_xlsx[int(1e6):int(2e6)].to_excel(excel_writer=caminho_saida_2, index=False, engine="xlsxwriter")
+if st.session_state["csv"]:
+    with st.spinner("**:material/hourglass: Preparando os dados para baixar, aguarde...**", show_time=True):
+        get_csv = load_report(mci, st.session_state["ano"], st.session_state["mês"])
 
-            caminho_saida_3 = f"static/escriturais/@deletar/{sigla}-{mes}-{ano}-Rendimentos Pagos-parte3.xlsx"
-            get_xlsx[int(2e6):].to_excel(excel_writer=caminho_saida_3, index=False, engine="xlsxwriter")
+        if not get_csv.empty:
+            sigla = load_data(mci)["sigla"].iloc[0]
+            get_csv.write_csv(file=f"static/escriturais/@deletar/{sigla}-{st.session_state['mês']}-"
+                                   f"{st.session_state['ano']}-Rendimentos Pagos.csv", index=False)
 
-            st.toast(body="**Mais partes de arquivos XLSX enviados para a pasta específica**",
-                     icon=":material/check_circle:")
-    else:
-        st.toast(body="**Sem dados para exibir**", icon=":material/warning:")
+            st.toast(body="**Arquivo CSV pronto para baixar**", icon=":material/check_circle:")
+
+            st.download_button(
+                label="Baixar CSV",
+                data=get_csv.to_csv(index=False).encode("utf-8"),
+                file_name=f"{sigla}-{st.session_state['mês']}-{st.session_state['ano']}-Rendimentos Pagos.csv",
+                mimetype="text/csv",
+                key="download_csv",
+                type="primary",
+                icon=":material/download:"
+            )
+
+        else:
+            st.toast(body="**Não há dados para baixar...**", icon=":material/error:")
+
+if st.session_state["xlsx"]:
+    with st.spinner("**:material/hourglass: Preparando os dados para baixar, aguarde...**", show_time=True):
+        get_xlsx = load_report(mci, st.session_state["ano"], st.session_state["mês"])
+
+        if not get_xlsx.empty:
+            sigla = load_data(mci)["sigla"].iloc[0]
+
+            path_xlsx_1: io.BytesIO = io.BytesIO()
+            path_xlsx_2: io.BytesIO = io.BytesIO()
+            path_xlsx_3: io.BytesIO = io.BytesIO()
+
+            xlsx_files: dict[io.BytesIO, str] = {
+                path_xlsx_1: get_xlsx[:int(1e6)].to_excel(
+                    excel_writer=f"{sigla}-{st.session_state['mês']}-{st.session_state['ano']}-"
+                                 f"Rendimentos Pagos-parte1.xlsx",
+                    index=False,
+                    engine="xlsxwriter"
+                ),
+                path_xlsx_2: get_xlsx[int(1e6):int(2e6)].to_excel(
+                    excel_writer=f"{sigla}-{st.session_state['mês']}-{st.session_state['ano']}-"
+                                 f"Rendimentos Pagos-parte2.xlsx",
+                    index=False,
+                    engine="xlsxwriter"
+                ),
+                path_xlsx_3: get_xlsx[int(2e6):].to_excel(
+                    excel_writer=f"{sigla}-{st.session_state['mês']}-{st.session_state['ano']}-"
+                                 f"Rendimentos Pagos-parte3.xlsx",
+                    index=False,
+                    engine="xlsxwriter"
+                ),
+            }
+
+            zip_buffer = io.BytesIO()
+
+            with zipfile.ZipFile(file=zip_buffer, mode="w", compression=zipfile.ZIP_DEFLATED) as zip_file:
+                for filename, xlsx_data in xlsx_files.items():
+                    zip_file.writestr(filename, xlsx_data)
+
+            zip_buffer.seek(0)
+
+            st.toast(body="**Arquivo ZIP pronto para baixar**", icon=":material/check_circle:")
+
+            st.download_button(
+                label="**Baixar ZIP**",
+                data=zip_buffer,
+                file_name="arquivos_xlsx.zip",
+                mime="application/zip",
+                key="download_xlsx",
+                type="primary",
+                icon=":material/download:",
+            )
+
+            st.toast(body="**Arquivo ZIP pronto para baixar**", icon=":material/check_circle:")
+
+        else:
+            st.toast(body="**Não há dados para baixar...**", icon=":material/error:")

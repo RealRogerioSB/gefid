@@ -29,9 +29,7 @@ def state():
 
 engine: SQLConnection = st.connection(name="DB2", type=SQLConnection)
 
-st.subheader(":material/bar_chart_4_bars: Ações em Tesouraria")
-
-st.markdown("##### Declaração de Ações em Tesouraria")
+st.markdown("##### :material/bar_chart_4_bars: Declaração de Ações em Tesouraria")
 
 with open("static/arquivos/protocolador/protocolador.txt") as f:
     ultimo_protocolo = int([x.strip().split("-") for x in f.readlines()][-1][1]) + 1
@@ -49,7 +47,7 @@ def load_client() -> dict[int, str]:
         ORDER BY t2.NOM
         """,
         show_spinner="**:material/hourglass: Obtendo os dados, aguarde...**",
-        ttl=60
+        ttl=0
     )
     return {k: v for k, v in zip(load["mci"].to_list(), load["nom"].to_list())}
 
@@ -125,7 +123,7 @@ def load_empresa(_mci: int, _data_ant: date, _data_atual: date) -> pd.DataFrame:
             data DESC
         """,
         show_spinner="**:material/hourglass: Obtendo os dados, aguarde...**",
-        ttl=60,
+        ttl=0,
         params=dict(mci=_mci, data_ant=_data_ant, data_atual=_data_atual)
     )
 
@@ -133,24 +131,39 @@ def load_empresa(_mci: int, _data_ant: date, _data_atual: date) -> pd.DataFrame:
 with st.columns(2)[0]:
     kv: dict[int, str] = load_client()
 
-    empresa: str = st.selectbox(label="**Empresa:**", options=kv.values(), on_change=state)
+    st.selectbox(label="**Empresa:**", options=kv.values(), key="empresa", on_change=state)
 
-    mci: int = next((chave for chave, valor in kv.items() if valor == empresa), 0)
+    mci: int = next((chave for chave, valor in kv.items() if valor == st.session_state["empresa"]), 0)
 
-    today: date = st.columns(3)[0].date_input("**Data:**", value=date.today(), format="DD/MM/YYYY")
+    st.columns(3)[0].date_input("**Data:**", value=date.today(), key="data", format="DD/MM/YYYY")
 
-if st.button("**Montar Declaração**", type="primary", icon=":material/picture_as_pdf:"):
-    mes: int = today.month - 1 if 1 < today.month <= 12 else 12
-    ano: int = today.year if 1 < today.month <= 12 else today.year - 1
+    st.button("**Montar Declaração**", key="montar", type="primary", icon=":material/picture_as_pdf:")
 
-    office: pd.DataFrame = load_empresa(mci, date(ano, mes, 28), today)
+    st.text_input("Para:", key="to_addrs", placeholder="Digite o e-mail de destinatário",
+                  help="Mais e-mails, coloca a vírgula", disabled=st.session_state["state_selectbox"])
 
-    if len(office) > 0:
+    st.text_input("CC:", key="cc_addrs", placeholder="Digite o e-mail de destinatário",
+                  help="Mais e-mails, coloca a vírgula", disabled=st.session_state["state_selectbox"])
+
+    st.button("**Enviar Declaração por E-mail**", key="enviar", type="primary", icon=":material/send:",
+              disabled=st.session_state["state_selectbox"])
+
+if st.session_state["montar"]:
+    data_ant: date = date(
+        st.session_state["data"].year if 1 < st.session_state["data"].month <= 12 else st.session_state["data"].year - 1,
+        st.session_state["data"].month - 1 if 1 < st.session_state["data"].month <= 12 else 12,
+        28
+    )
+
+    office: pd.DataFrame = load_empresa(mci, data_ant, st.session_state["data"])
+
+    if not office.empty:
         office["pk"] = f"{office['mci']}-{office['cod_titulo']}-{office['custodiante']}"
         office = office.groupby("pk").first()
         office = office[office["quantidade"].ne(0)]
 
-        arquivo: str = f"static/escriturais/@deletar/AcoesEmTesouraria-{empresa} - {today}.pdf"
+        arquivo: str = (f"static/escriturais/@deletar/AcoesEmTesouraria-{st.session_state['empresa']} - "
+                        f"{st.session_state['data']}.pdf")
 
         reportlab.rl_config.warnOnMissingFontGlyphs = 0
 
@@ -172,11 +185,11 @@ if st.button("**Montar Declaração**", type="primary", icon=":material/picture_
         cnv.drawString(40, 620, f"relativos aos serviços de escrituração das ações de emissão da empresa"
                                 f" abaixo informa a")
         cnv.drawString(40, 605, f"quantidade de ativos na tesouraria no ambiente escritural (Livro) em "
-                                f"{today:%d/%m/%Y}.")
+                                f"{st.session_state['data']:%d/%m/%Y}.")
 
         cnpj: int = office["cpf_cnpj"].iloc[0]
 
-        cnv.drawString(40, 575, f"Razão Social: {empresa}")
+        cnv.drawString(40, 575, f"Razão Social: {st.session_state['empresa']}")
         cnv.drawString(40, 560, f"CNPJ: {cnpj}")
 
         y: int = 0
@@ -200,73 +213,73 @@ if st.button("**Montar Declaração**", type="primary", icon=":material/picture_
 
         st.toast("**Declaração de Ações em Tesouraria gerada com sucesso! Favor preencher e-mails.**",
                  icon=":material/check_circle:")
+
         st.session_state["state_selectbox"] = False
+        st.rerun()
 
     else:
         st.toast("**Não identificamos ações em tesouraria para o referido cliente**", icon=":material/warning:")
 
-with st.columns(2)[0]:
-    to_addrs: str = st.text_input("Para:", placeholder="Digite o e-mail de destinatário",
-                                  help="Mais e-mails, coloca a vírgula", disabled=st.session_state["state_selectbox"])
-    cc_addrs: str = st.text_input("CC:", placeholder="Digite o e-mail de destinatário",
-                                  help="Mais e-mails, coloca a vírgula", disabled=st.session_state["state_selectbox"])
+if st.session_state["enviar"]:
+    if any([st.session_state["to_addrs"], st.session_state["cc_addrs"]]):
+        from_addr: str = "aescriturais@bb.com.br"
+        to_addrs: list[str] = st.session_state["to_addrs"].replace(" ", "").split(",")
+        cc_addrs: list[str] = st.session_state["cc_addrs"].replace(" ", "").split(",")
 
-    if st.button("**Enviar Declaração por E-mail**", type="primary", icon=":material/send:",
-                 disabled=st.session_state["state_selectbox"]):
-        if any([to_addrs, cc_addrs]):
-            from_addr: str = "aescriturais@bb.com.br"
-            to_addrs: list[str] = to_addrs.replace(" ", "").split(",")
-            cc_addrs: list[str] = cc_addrs.replace(" ", "").split(",")
+        msg: MIMEMultipart = MIMEMultipart()
+        msg["From"] = from_addr
+        msg["To"] = ", ".join(to_addrs)
+        msg["Cc"] = ", ".join(cc_addrs)
+        msg["Subject"] = "DECLARAÇÃO AÇÕES EM TESOURARIA"
+        msg.attach(MIMEText(
+            """<html>
+                    <head></head>
+                    <body>
+                        <br><br>
+                        <div>Prezados,<br><br>
+                        Segue <b>em anexo</b> Declaração de Ações em Tesouraria</div>
+                        <br><br>
+                    </body>
+                </html>""",
+            "html"
+        ))
 
-            msg: MIMEMultipart = MIMEMultipart()
-            msg["From"] = from_addr
-            msg["To"] = ", ".join(to_addrs)
-            msg["Cc"] = ", ".join(cc_addrs)
-            msg["Subject"] = "DECLARAÇÃO AÇÕES EM TESOURARIA"
+        part: MIMEBase = MIMEBase("application", "octet-stream")
 
-            html: str = """<html>
-                <head></head>
-                <body>
-                    <br><br>
-                    <div>Prezados,<br><br>
-                    Segue <b>em anexo</b> Declaração de Ações em Tesouraria</div>
-                    <br><br>
-                </body>
-            </html>"""
+        arquivo: str = (f"static/escriturais/@deletar/AcoesEmTesouraria-{st.session_state['empresa']} - "
+                        f"{st.session_state['data']}.pdf")
 
-            msg.attach(MIMEText(html, "html"))
+        with open(arquivo, "rb") as f:
+            payload: bytes = f.read()
 
-            part: MIMEBase = MIMEBase("application", "octet-stream")
+        part.set_payload(payload)
 
-            arquivo: str = f"static/escriturais/@deletar/AcoesEmTesouraria-{empresa} - {today}.pdf"
+        encoders.encode_base64(part)
 
-            with open(arquivo, "rb") as f:
-                payload: bytes = f.read()
+        part.add_header(
+            "Content-Disposition",
+            "attachment; filename='acoesemtesouraria.pdf'"
+        )
 
-            part.set_payload(payload)
+        msg.attach(part)
 
-            encoders.encode_base64(part)
+        with smtplib.SMTP("smtp.bb.com.br") as server:
+            server.set_debuglevel(1)
+            try:
+                server.sendmail(from_addr, to_addrs + cc_addrs, msg.as_string())
 
-            part.add_header(
-                "Content-Disposition",
-                "attachment; filename='acoesemtesouraria.pdf'"
-            )
+            except smtplib.SMTPException:
+                st.toast("**Falha ao enviar e-mail**", icon=":material/error:")
 
-            msg.attach(part)
+            else:
+                with open("static/arquivos/protocolador/protocolador.txt", "a") as save_protocol:
+                    save_protocol.write("\n")
+                    save_protocol.write(f"{date.today().year}-{ultimo_protocolo}-Protocolo Ações em "
+                                        f"Tesouraria-{st.session_state['empresa']}")
 
-            with smtplib.SMTP("smtp.bb.com.br") as server:
-                server.set_debuglevel(1)
-                try:
-                    server.sendmail(from_addr, to_addrs + cc_addrs, msg.as_string())
-                    st.toast("**E-mail enviado com sucesso**", icon=":material/check_circle:")
-                    st.session_state["state_selectbox"] = True
+                st.toast("**E-mail enviado com sucesso**", icon=":material/check_circle:")
 
-                    with open("static/arquivos/protocolador/protocolador.txt", "a") as save_protocol:
-                        save_protocol.write("\n")
-                        save_protocol.write(f"{date.today().year}-{ultimo_protocolo}-Protocolo Ações em "
-                                            f"Tesouraria-{empresa}")
-
-                except smtplib.SMTPException:
-                    st.toast("**Falha ao enviar e-mail**", icon=":material/error:")
-        else:
-            st.toast("**É obrigatório preencher um dos campos de e-mail**", icon=":material/warning:")
+                st.session_state["state_selectbox"] = True
+                st.rerun()
+    else:
+        st.toast("**É obrigatório preencher um dos campos de e-mail**", icon=":material/warning:")

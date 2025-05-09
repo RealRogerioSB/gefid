@@ -45,7 +45,7 @@ def get_join_email(key: str, value: int | str) -> pd.DataFrame:
                 t3.{key.upper()} = :value
         """,
         show_spinner=False,
-        ttl=60,
+        ttl=0,
         params=dict(value=value),
     )
 
@@ -68,7 +68,7 @@ def get_email(key: str, value: int | str) -> pd.DataFrame:
                 {key.upper()} = :value
         """,
         show_spinner=False,
-        ttl=60,
+        ttl=0,
         params=dict(value=value),
     )
 
@@ -122,47 +122,48 @@ with st.container():
     with st.columns(2)[0]:
         st.markdown("###### Informe de Rendimentos de Ativos Escriturais (somente preencha um campo abaixo)")
 
-        tx_nome = st.text_input(label="**Nome do Investidor:**", placeholder="Digite o nome do Investidor")
-        tx_mci = st.text_input(label="**MCI:**", placeholder="Digite o número do MCI")
-        tx_cpf_cnpj = st.text_input(label="**CPF / CNPJ:**", placeholder="Digite o número do CPF ou CNPJ")
-        tx_email = st.text_input(label="**E-mail:**", placeholder="Digite o e-mail do Investidor")
+        st.text_input(label="**Nome do Investidor:**", key="tx_nome", placeholder="Digite o nome do Investidor")
+        st.text_input(label="**MCI:**", key="tx_mci", placeholder="Digite o número do MCI")
+        st.text_input(label="**CPF / CNPJ:**", key="tx_cpf_cnpj", placeholder="Digite o número do CPF ou CNPJ")
+        st.text_input(label="**E-mail:**", key="tx_email", placeholder="Digite o e-mail do Investidor")
 
         if st.button(label="**Pesquisar**", key="btn_search", type="primary"):
             with st.spinner(text=":material/hourglass: Obtendo os dados, aguarde...", show_time=True):
-                if not any([tx_nome, tx_mci, tx_cpf_cnpj, tx_email]):
+                if not any([st.session_state["tx_nome"], st.session_state["tx_mci"], st.session_state["tx_cpf_cnpj"],
+                            st.session_state["tx_email"]]):
                     st.toast("**Precisa digitar qualquer um campo para pesquisar, pelo menos...**",
                              icon=":material/warning:")
 
-                elif tx_nome != "":
+                elif st.session_state["tx_nome"] != "":
                     report(
-                        get_join_email("investidor", unidecode(tx_nome).upper()),
-                        get_bb("investidor", unidecode(tx_nome).upper()),
-                        get_b3("investidor", unidecode(tx_nome).upper())
+                        get_join_email("investidor", unidecode(st.session_state["tx_nome"]).upper()),
+                        get_bb("investidor", unidecode(st.session_state["tx_nome"]).upper()),
+                        get_b3("investidor", unidecode(st.session_state["tx_nome"]).upper())
                     )
 
-                elif tx_mci != "":
-                    if re.sub(r"\D", "", tx_mci):
+                elif st.session_state["tx_mci"] != "":
+                    if re.sub(r"\D", "", st.session_state["tx_mci"]):
                         report(
-                            get_email("cd_cli_acnt", re.sub(r"\D", "", tx_mci)),
-                            get_bb("mci_investidor", re.sub(r"\D", "", tx_mci)),
-                            get_b3("mci_investidor", re.sub(r"\D", "", tx_mci))
+                            get_email("cd_cli_acnt", re.sub(r"\D", "", st.session_state["tx_mci"])),
+                            get_bb("mci_investidor", re.sub(r"\D", "", st.session_state["tx_mci"])),
+                            get_b3("mci_investidor", re.sub(r"\D", "", st.session_state["tx_mci"]))
                         )
                     else:
                         st.toast("**O campo MCI está inválido...**", icon=":material/warning:")
 
-                elif tx_cpf_cnpj != "":
-                    if re.sub(r"\D", "", tx_cpf_cnpj):
+                elif st.session_state["tx_cpf_cnpj"] != "":
+                    if re.sub(r"\D", "", st.session_state["tx_cpf_cnpj"]):
                         report(
-                            get_join_email("cpf_cnpj", re.sub("\D", "", tx_cpf_cnpj)),
-                            get_bb("cpf_cnpj", re.sub("\D", "", tx_cpf_cnpj)),
-                            get_b3("cpf_cnpj", re.sub("\D", "", tx_cpf_cnpj))
+                            get_join_email("cpf_cnpj", re.sub("\D", "", st.session_state["tx_cpf_cnpj"])),
+                            get_bb("cpf_cnpj", re.sub("\D", "", st.session_state["tx_cpf_cnpj"])),
+                            get_b3("cpf_cnpj", re.sub("\D", "", st.session_state["tx_cpf_cnpj"]))
                         )
                     else:
                         st.toast("**O Campo CPF / CNPJ está inválido...**", icon=":material/warning:")
 
-                elif tx_email != "":
+                elif st.session_state["tx_email"] != "":
                     report(
-                        get_email("tx_end_emai", tx_email.lower()),
-                        get_bb("email", tx_email.lower()),
-                        get_b3("email", tx_email.lower())
+                        get_email("tx_end_emai", st.session_state["tx_email"].lower()),
+                        get_bb("email", st.session_state["tx_email"].lower()),
+                        get_b3("email", st.session_state["tx_email"].lower())
                     )

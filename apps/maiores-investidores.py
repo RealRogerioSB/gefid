@@ -40,9 +40,9 @@ def load_client() -> dict[int, str]:
         SELECT t1.CD_CLI_EMT AS MCI, STRIP(t2.NOM) AS NOM
         FROM DB2AEB.PRM_EMP t1 INNER JOIN DB2MCI.CLIENTE t2 ON t2.COD = t1.CD_CLI_EMT
         WHERE t1.DT_ECR_CTR IS NULL
-        ORDER BY t2.NOM
+        ORDER BY STRIP(t2.NOM)
         """,
-        show_spinner="**:material/hourglass: Obtendo os dados, aguarde...**",
+        show_spinner="**:material/hourglass: Preparando a listagem da empresa, aguarde...**",
         ttl=0
     )
     return {k: v for k, v in zip(load["mci"].to_list(), load["nom"].to_list())}
@@ -119,7 +119,7 @@ def load_empresa(_mci: int, _data_ant: date, _data_atual: date, limite: int) -> 
             DATA DESC
         FETCH FIRST {limite} ROWS ONLY
         """,
-        show_spinner="**:material/hourglass: Obtendo os dados, aguarde...**",
+        show_spinner=False,
         ttl=0,
         params=dict(mci=_mci, data_ant=_data_ant, data_atual=_data_atual)
     )
@@ -141,7 +141,7 @@ def load_cadastro(_mci: int) -> pd.DataFrame:
     WHERE
         t1.CD_CLI_EMT = :mci
         """,
-        show_spinner="**:material/hourglass: Obtendo os dados, aguarde...**",
+        show_spinner=False,
         ttl=0,
         params=dict(mci=_mci)
     )
@@ -174,7 +174,7 @@ with st.columns(2)[0]:
               disabled=st.session_state['state_selectbox'])
 
 if st.session_state["montar"]:
-    with st.spinner("**Fazendo a declaração, aguarde...**", show_time=True):
+    with st.spinner("**Preparando a declaração, aguarde...**", show_time=True):
         reportlab.rl_config.warnOnMissingFontGlyphs = 0
 
         pdfmetrics.registerFont(TTFont("Vera", "Vera.ttf"))
@@ -195,8 +195,8 @@ if st.session_state["montar"]:
             st.toast("**Não há dados para montar a declaração...**", icon=":material/warning:")
             st.stop()
 
-        base["pk"] = f"{base['mci']}-{base['cod_titulo']}-{base['custodiante']}"
-        base = base.groupby("pk").first()
+        # base["pk"] = f"{base['mci']}-{base['cod_titulo']}-{base['custodiante']}"
+        # base = base.groupby("pk").first()
         base = base[base["QTD"].ne(0)]
 
         base.drop(["mci", "cod_titulo", "custodiante"], axis=1, inplace=True)
@@ -210,7 +210,7 @@ if st.session_state["montar"]:
                                                             "sigla": "first", "QTD": "sum"})
 
         base = base.sort_values(["QTD"], ascending=False)
-        base.reset_index(drop=True, inplace=True)
+        base.reset_index(inplace=True)
 
         # definindo estilos que serão usados na carta
         header: ParagraphStyle = ParagraphStyle("header", fontName="Vera", fontSize=11, textColor=colors.black,
@@ -229,7 +229,7 @@ if st.session_state["montar"]:
             Image(filename="static/imagens/bb.jpg", width=300, height=38),
             Spacer(30, 30),
             Paragraph(f"Diretoria Operações - {date.today()}/DIEST-{last_protocol}", header),
-            Paragraph(f"Rio de Janeiro, {date.today():%d de %B de %Y}", header),
+            Paragraph(f"Rio de Janeiro, {date.today():%d/%m/%Y}", header),
             Spacer(30, 30),
             Paragraph("Ao (À)", header),
             Paragraph(nome_empresa, header),
@@ -280,7 +280,7 @@ if st.session_state["montar"]:
 
         st.toast("**Declaração gerada com sucesso**", icon=":material/check_circle:")
 
-        time.sleep(1)
+        time.sleep(1.5)
 
         st.session_state["state_selectbox"] = False
         st.rerun()
@@ -337,13 +337,12 @@ if st.session_state["send_email"]:
                 st.toast("Houve falha ao enviar e-mail...", icon=":material/warning:")
                 st.stop()
 
-            else:
-                with open("static/arquivos/protocolador/protocolador.txt", "a") as new_protocol:
-                    new_protocol.write(f"{date.today().year}-{last_protocol}-MaioresInvestidores - {nome_empresa}")
+        with open("static/arquivos/protocolador/protocolador.txt", "a") as save_protocol:
+            save_protocol.write(f"{date.today().year}-{last_protocol}-MaioresInvestidores - {nome_empresa}")
 
-                st.toast("**Declaração enviada com sucesso**", icon=":material/check_circle:")
+        st.toast("**Declaração enviada com sucesso!**", icon=":material/check_circle:")
 
-                time.sleep(1)
+        time.sleep(2)
 
-                st.session_state["state_selectbox"] = True
-                st.rerun()
+        st.session_state["state_selectbox"] = True
+        st.rerun()

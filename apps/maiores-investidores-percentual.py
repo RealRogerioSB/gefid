@@ -1,6 +1,6 @@
 import smtplib
 import time
-from datetime import date
+from datetime import date, timedelta
 from email.mime.text import MIMEText
 from email.mime.base import MIMEBase
 from email.mime.multipart import MIMEMultipart
@@ -43,7 +43,7 @@ def load_client() -> dict[int, str]:
         WHERE t1.DT_ECR_CTR IS NULL
         ORDER BY t2.NOM
         """,
-        show_spinner="**:material/hourglass: Obtendo os dados, aguarde...**",
+        show_spinner="**:material/hourglass: Preparando a lista da empresa, aguarde...**",
         ttl=0
     )
     return {k: v for k, v in zip(load["mci"].to_list(), load["nom"].to_list())}
@@ -172,7 +172,7 @@ with st.columns(2)[0]:
               disabled=st.session_state['state_selectbox'])
 
 if st.session_state["montar"]:
-    with st.spinner("**Fazendo a declaração, aguarde...**", show_time=True):
+    with st.spinner("**Preparando a declaração, aguarde...**", show_time=True):
         reportlab.rl_config.warnOnMissingFontGlyphs = 0
 
         pdfmetrics.registerFont(TTFont("Vera", "Vera.ttf"))
@@ -180,21 +180,17 @@ if st.session_state["montar"]:
         pdfmetrics.registerFont(TTFont("VeraIt", "VeraIt.ttf"))
         pdfmetrics.registerFont(TTFont("VeraBI", "VeraBI.ttf"))
 
-        data_ant: date = date(
-            st.session_state["data"].year - 1 if st.session_state["data"].month == 1 else st.session_state["data"].year,
-            12 if st.session_state["data"].month == 1 else st.session_state["data"].month - 1,
-            28
-        )
+        data_ant: date = (st.session_state["data"].replace(day=1) - timedelta(days=1)).replace(day=28)
 
         base: pd.DataFrame = load_empresa(mci, data_ant, st.session_state["data"]) \
             .rename(columns={"investidor": "INVESTIDOR", "cpf_cnpj": "CPF_CNPJ", "qtd": "QTD"})
 
         if base.empty:
-            st.toast("**Não há dados para montar a declaração...**", icon=":material/warning:")
+            st.toast("**Não há dados para montar a declaração...**", icon=":material/error:")
             st.stop()
 
-        base["pk"] = f"{base['mci']}-{base['cod_titulo']}-{base['custodiante']}"
-        base = base.groupby("pk").first()
+        # base["pk"] = f"{base['mci']}-{base['cod_titulo']}-{base['custodiante']}"
+        # base = base.groupby("pk").first()
         base = base[base["QTD"].ne(0)]
         base["%"] = np.trunc(base["QTD"] / sum(base["QTD"]) * 100)
 
@@ -210,7 +206,7 @@ if st.session_state["montar"]:
 
         base = base.sort_values(["QTD"], ascending=False)
         base = base[base["%"].ge(st.session_state["percentual"])]
-        base.reset_index(drop=True, inplace=True)
+        base.reset_index(inplace=True)
 
         # definindo estilos que serão usados na carta
         header: ParagraphStyle = ParagraphStyle("header", fontName="Vera", fontSize=11, textColor=colors.black,
@@ -277,7 +273,7 @@ if st.session_state["montar"]:
         pdf: SimpleDocTemplate = SimpleDocTemplate(arquivo, pagesize=A4)
         pdf.build(elements)
 
-        st.toast("**Declaração gerada com sucesso**", icon=":material/check_circle:")
+        st.toast("**Declaração gerada com sucesso!**", icon=":material/check_circle:")
 
         time.sleep(2)
 
@@ -335,8 +331,8 @@ if st.session_state["send_email"]:
                 st.toast("Houve falha ao enviar e-mail...", icon=":material/warning:")
                 st.stop()
 
-        with open("static/arquivos/protocolador/protocolador.txt", "a") as new_protocol:
-            new_protocol.write(f"{date.today().year}-{last_protocol}-MaioresInvestidores - {nome_empresa}")
+        with open("static/arquivos/protocolador/protocolador.txt", "a") as save_protocol:
+            save_protocol.write(f"{date.today().year}-{last_protocol}-MaioresInvestidores - {nome_empresa}")
 
         st.toast("**Declaração enviada com sucesso**", icon=":material/check_circle:")
 

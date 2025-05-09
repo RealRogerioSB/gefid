@@ -16,7 +16,7 @@ st.columns(2)[0].markdown("##### Devem ser colocados 12 arquivos 064B da mesma e
                           "a mesma extensão de outra empresa ou ano")
 
 
-@st.cache_data(show_spinner=":material/hourglass: Obtendo os dados, aguarde...")
+@st.cache_data(show_spinner=":material/hourglass: Preparando a listagem da empresa, aguarde...")
 def load_active(active: str) -> dict[int, str]:
     df1 = engine.query(
         sql=f"""
@@ -28,10 +28,10 @@ def load_active(active: str) -> dict[int, str]:
                 INNER JOIN DB2MCI.CLIENTE AS t2
                     ON t2.COD = t1.CD_CLI_EMT
             WHERE
-                t1.DT_ECR_CTR IS {active}
+                t1.DT_ECR_CTR IS {active.upper()}
         """,
         show_spinner=False,
-        ttl=60,
+        ttl=0,
     )
     return {k: v for k, v in zip(df1["mci"].to_list(), df1["nom"].to_list())}
 
@@ -40,44 +40,49 @@ def load_active(active: str) -> dict[int, str]:
 def load_report(_mci: int) -> tuple[int, str, str, int]:
     df2 = engine.query(
         sql="""
-            SELECT t1.CD_CLI_EMT    AS MCI_EMPRESA,
-                   STRIP(t1.SG_EMP) AS SIGLA,
-                   STRIP(t2.NOM)    AS EMPRESA,
-                   t2.COD_CPF_CGC   AS CNPJ
-            FROM DB2AEB.PRM_EMP t1
-                     INNER JOIN DB2MCI.CLIENTE t2
-                                ON t2.COD = t1.CD_CLI_EMT
-            WHERE t1.CD_CLI_EMT = :mci
+            SELECT
+                t1.CD_CLI_EMT AS MCI_EMPRESA,
+                STRIP(t1.SG_EMP) AS SIGLA,
+                STRIP(t2.NOM) AS EMPRESA,
+                t2.COD_CPF_CGC AS CNPJ
+            FROM
+                DB2AEB.PRM_EMP t1
+                    INNER JOIN DB2MCI.CLIENTE t2
+                        ON t2.COD = t1.CD_CLI_EMT
+            WHERE
+                t1.CD_CLI_EMT = :mci
             """,
         show_spinner=False,
-        ttl=60,
+        ttl=0,
         params=dict(mci=_mci),
     )
-    return df2["mci_empresa"][0], df2["sigla"][0], df2["empresa"][0], df2["cnpj"][0]
+
+    return df2["mci_empresa"].iloc[0], df2["sigla"].iloc[0], df2["empresa"].iloc[0], df2["cnpj"].iloc[0]
 
 
 col1, col2 = st.columns(2)
+col1.radio(label="**Situação de Clientes:**", options=["ativos", "inativos"], key="option_active")
 
-option_active = col1.radio(label="**Situação de Clientes:**", options=["ativos", "inativos"])
+kv = load_active("null") if st.session_state["option_active"] == "ativos" else load_active("not null")
 
-kv = load_active("NULL") if option_active == "ativos" else load_active("NOT NULL")
-
-empresa = col1.selectbox(
-    label="**Clientes ativos:**" if option_active == "ativos" else "**Clientes inativos:**",
+col1.selectbox(
+    label="**Clientes ativos:**" if st.session_state["option_active"] == "ativos" else "**Clientes inativos:**",
     options=sorted(kv.values()),
+    key="empresa"
 )
 
-mci = next((chave for chave, valor in kv.items() if valor == empresa), 0)
+mci = next((chave for chave, valor in kv.items() if valor == st.session_state["empresa"]), 0)
 
 if st.button("**Gerar DIPJ**", type="primary"):
     with st.spinner(":material/hourglass: Verificando os dados, aguarde...", show_time=True):
         mci_emissor, cod_aeb, nome_emissor, cnpj_emissor = load_report(mci)
 
         # diretórios
-        diretorio_origem = diretorio_destino = "static/escriturais/@deletar"
+        diretorio_origem: str = "static/escriturais/@deletar"
+        diretorio_destino: str = "static/escriturais/@deletar"
 
         # pegando os arquivos com final ".PAGO"
-        all_files = glob.glob(diretorio_origem + "/*.PAGO")
+        all_files: list[str] = glob.glob(diretorio_origem + "/*.PAGO")
 
         # Verificando se foram localizados 12 arquivos *.PAGO no diretório
         if len(all_files) < 12:
@@ -94,7 +99,7 @@ if st.button("**Gerar DIPJ**", type="primary"):
         li = []
 
         # criando dict para modelar o dataframe com os 12 meses
-        mod = {
+        mod: dict[str, list[int | str]] = {
             "Ano Ref": ["9999", "9999", "9999", "9999", "9999", "9999", "9999", "9999", "9999", "9999", "9999", "9999"],
             "MCI Emissor": ["999999999", "999999999", "999999999", "999999999", "999999999", "999999999", "999999999",
                             "999999999", "999999999", "999999999", "999999999", "999999999"],
@@ -113,12 +118,14 @@ if st.button("**Gerar DIPJ**", type="primary"):
 
         # iterando a leitura do Pandas em todos os arquivos da pasta
         for filename in all_files:
-            df = pd.read_fwf(filename,
-                             colspecs=[(0, 4), (4, 6), (6, 15), (15, 18), (18, 19), (19, 59), (59, 76),
-                                       (76, 93), (93, 110), (110, 133)],
-                             names=["Ano Ref", "Mês Ref", "MCI Emissor", "País", "Tipo Pessoa", "Tipo Direito",
-                                    "Vlr Bruto", "Vlr IR", "Vlr Líquido", "Controle"],
-                             encoding="latin")
+            df: pd.DataFrame = pd.read_fwf(
+                filepath_or_buffer=filename,
+                colspecs=[(0, 4), (4, 6), (6, 15), (15, 18), (18, 19), (19, 59),
+                          (59, 76), (76, 93), (93, 110), (110, 133)],
+                names=["Ano Ref", "Mês Ref", "MCI Emissor", "País", "Tipo Pessoa",
+                       "Tipo Direito", "Vlr Bruto", "Vlr IR", "Vlr Líquido", "Controle"],
+                encoding="latin"
+            )
 
             # guardando a informação do ano do último arquivo lido
             ano = str(df.iat[0, 0])
@@ -129,8 +136,6 @@ if st.button("**Gerar DIPJ**", type="primary"):
 
         # concatenando o li
         dfs = pd.concat(li, axis=0, ignore_index=True, verify_integrity=True)
-
-        print(dfs["Ano Ref"].unique())
 
         # Verificando se todos os arquivos sÃ£o do mesmo ano e guardando o ano caso
         if len(dfs["Ano Ref"].unique()) == 1:
@@ -148,7 +153,8 @@ if st.button("**Gerar DIPJ**", type="primary"):
 
         # pivotando o dfs
         table = pd.pivot_table(dfs, values=["Vlr Bruto", "Vlr IR", "Vlr Líquido"],
-                               index=["País", "Tipo Pessoa", "Tipo Direito"], columns=["Mês Ref"], sort=False)
+                               index=["País", "Tipo Pessoa", "Tipo Direito"],
+                               columns=["Mês Ref"], sort=False)
 
         # substitui nan por zeros
         table = table.fillna(0)

@@ -34,7 +34,7 @@ def load_evid(_data_pos: date) -> pd.DataFrame:
                      CD_CLI_EMT
             ORDER BY CD_CLI_ACNT
             """,
-        ttl=60,
+        ttl=0,
         show_spinner=False,
         params=dict(data_posterior=_data_pos),
     )
@@ -71,11 +71,12 @@ with st.columns(3)[0]:
     st.file_uploader("**Escolha o arquivo que chegou no Siri:**", key="up_base_siri")
     st.button("**Arquivo Excel**", key="btn_au", type="primary", icon=":material/upload:")
 
-if st.session_state.btn_ev:
-    mes: int = 1 if st.session_state.mes_evid == 12 else st.session_state.mes_evid + 1
-    ano: int = st.session_state.ano_evid + 1 if st.session_state.mes_evid == 12 else st.session_state.ano_evid
-
-    data_pos: date = date(ano, mes, 1)
+if st.session_state["btn_ev"]:
+    data_pos: date = date(
+        st.session_state.ano_evid + 1 if st.session_state.mes_evid == 12 else st.session_state.ano_evid,
+        1 if st.session_state.mes_evid == 12 else st.session_state.mes_evid + 1,
+        1
+    )
 
     dfevid: pd.DataFrame = load_evid(data_pos)
 
@@ -87,10 +88,10 @@ if st.session_state.btn_ev:
         {"empresa": "BB Gestão de Recursos Dist Títulos e Val", "cnpj": "30.822.936/0001-69"},
     ]
 
-    if len(dfevid) > 0:
-        last_day: date = date(ano, mes, 1) - timedelta(days=1)
+    if not dfevid.empty:
+        last_day: date = data_pos - timedelta(days=1)
 
-        arquivo: str = f"static/escriturais/@deletar/Autorregulação BB - Evidências - {data_pos:%B} de {ano}.pdf"
+        arquivo: str = f"static/escriturais/@deletar/Autorregulação BB - Evidências - {data_pos:%B} de {data_pos:%Y}.pdf"
 
         cnv: canvas.Canvas = canvas.Canvas(filename=arquivo, pagesize=A4)
         cnv.drawImage(image="static/imagens/bb.jpg", x=40, y=780, width=300, height=38)
@@ -125,14 +126,10 @@ if st.session_state.btn_ev:
         cnv.setFont(psfontname="Vera", size=8)
         cnv.drawString(x=40, y=90, text="_" * 129)
         cnv.drawString(x=40, y=75, text="DIRETORIA OPERAÇÕES - DIOPE")
-        cnv.drawString(
-            x=40, y=60,
-            text="Gerência Executiva de Negócios em Serviços Fiduciários - Gerência de Escrituração e Trustee"
-        )
-        cnv.drawString(
-            x=40, y=45,
-            text="Avenida República do Chile, 330 - 9º andar - Torre Oeste - Centro - Rio de Janeiro RJ"
-        )
+        cnv.drawString(x=40, y=60, text="Gerência Executiva de Negócios em Serviços Fiduciários - Gerência de "
+                                        "Escrituração e Trustee")
+        cnv.drawString(x=40, y=45, text="Avenida República do Chile, 330 - 9º andar - Torre Oeste - Centro - "
+                                        "Rio de Janeiro RJ")
         cnv.drawString(x=40, y=30, text="Telefone: (21) 3808-3715")
         cnv.drawString(x=40, y=15, text="Ouvidoria BB - 0800 729 5678")
 
@@ -142,10 +139,12 @@ if st.session_state.btn_ev:
     else:
         st.toast("**Não consta nada na data estabelecida**", icon=":material/warning:")
 
-if st.session_state.btn_ac:
-    mes: int = 1 if st.session_state.mes_aci == 12 else st.session_state.mes_aci + 1
-    ano: int = st.session_state.ano_aci + 1 if st.session_state.mes_aci == 12 else st.session_state.ano_aci
-    data_pos: date = date(ano, mes, 1)
+if st.session_state["btn_ac"]:
+    data_pos: date = date(
+        st.session_state.ano_aci + 1 if st.session_state.mes_aci == 12 else st.session_state.ano_aci,
+        1 if st.session_state.mes_aci == 12 else st.session_state.mes_aci + 1,
+        1
+    )
 
     if st.session_state.up_base_aci is None:
         st.toast("**Ainda não baixou o arquivo 738 correspondente...**", icon=":material/warning:")
@@ -192,7 +191,7 @@ if st.session_state.btn_ac:
     def arquivo_base_acionaria() -> None:
         # Create a Pandas Excel writer using XlsxWriter as the engine.
         writer: pd.ExcelWriter = pd.ExcelWriter(
-            path=f"static/escriturais/@deletar/Base Acionária_-_DIOPE-GEFID_-_{data_pos:%B} de {ano}.xlsx",
+            path=f"static/escriturais/@deletar/Base Acionária_-_DIOPE-GEFID_-_{data_pos:%B de %Y}.xlsx",
             engine="xlsxwriter"
         )
 
@@ -216,7 +215,7 @@ if st.session_state.btn_ac:
 
         # conteúdo da aba quadro resumo
         worksheet_qr.set_column(1, 3, 50)
-        worksheet_qr.merge_range("B2:D2", f"Autorregulação Banco do Brasil - {mes:%B} de {ano}", titulo)
+        worksheet_qr.merge_range("B2:D2", f"Autorregulação Banco do Brasil - {data_pos:%B de %Y}", titulo)
 
         worksheet_qr.write("B4", "Segmento", menu_format)
         worksheet_qr.write("B5", "Pessoas Físicas no País", text_format)
@@ -301,11 +300,12 @@ if st.session_state.btn_ac:
 
     st.toast("**Geração de Excel feita com sucesso!**", icon=":material/check_circle:")
 
-if st.session_state.btn_au:
-    ano: int = st.session_state.ano_auto + 1 if st.session_state.mes_auto == 12 else st.session_state.ano_auto
-    mes: int = 1 if st.session_state.mes_auto == 12 else st.session_state.mes_auto + 1
-
-    data_pos = date(ano, mes, 1) - timedelta(days=1)
+if st.session_state["btn_au"]:
+    data_pos = date(
+        st.session_state.ano_auto + 1 if st.session_state.mes_auto == 12 else st.session_state.ano_auto,
+        1 if st.session_state.mes_auto == 12 else st.session_state.mes_auto + 1,
+        1
+    ) - timedelta(days=1)
 
     if not all([st.session_state.up_base_738, st.session_state.up_base_siri]):
         st.toast("**Não subiu os 2 arquivos exigidos...**", icon=":material/warning:")
@@ -336,7 +336,7 @@ if st.session_state.btn_au:
             mes_anterior: date = data_pos - timedelta(days=31)
 
             # escolhe a aba do mês anterior ao mês da autorregulação
-            sheet1 = baseacionaria[f"Base Acionária - {mes_anterior:%B} de {mes_anterior:%Y}"]
+            sheet1 = baseacionaria[f"Base Acionária - {mes_anterior:%B de %Y}"]
 
             # deleta colunas dos mes -2
             sheet1.delete_cols(idx=3, amount=3)
@@ -518,8 +518,8 @@ if st.session_state.btn_au:
                     else:
                         continue
 
-            baseacionaria.save(filename=f"static/escriturais/@deletar/Autorregulação_-_DIOPE-GEFID_-_{mes:%B} de "
-                                        f"{ano}.xlsx")
+            baseacionaria.save(filename=f"static/escriturais/@deletar/Autorregulação_-_DIOPE-GEFID_-_"
+                                        f"{data_pos:%B de %Y}.xlsx")
 
         aba_base()
         aba_diretoria()
