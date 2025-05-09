@@ -1,6 +1,6 @@
 import smtplib
 import time
-from datetime import date
+from datetime import date, timedelta
 from email.mime.text import MIMEText
 from email.mime.base import MIMEBase
 from email.mime.multipart import MIMEMultipart
@@ -182,11 +182,7 @@ if st.session_state["montar"]:
         pdfmetrics.registerFont(TTFont("VeraIt", "VeraIt.ttf"))
         pdfmetrics.registerFont(TTFont("VeraBI", "VeraBI.ttf"))
 
-        data_ant: date = date(
-            st.session_state["data"].year - 1 if st.session_state["data"].month == 1 else st.session_state["data"].year,
-            12 if st.session_state["data"].month == 1 else st.session_state["data"].month - 1,
-            28
-        )
+        data_ant: date = (st.session_state["data"].replace(day=1) - timedelta(days=1)).replace(day=28)
 
         base: pd.DataFrame = load_empresa(mci, data_ant, st.session_state["data"], st.session_state["quantidade"]) \
             .rename(columns={"investidor": "INVESTIDOR", "cpf_cnpj": "CPF_CNPJ", "qtd": "QTD"})

@@ -45,13 +45,11 @@ st.button("**Pesquisar**", key="search", type="primary", icon=":material/search:
 if st.session_state["search"]:
     if not any([st.session_state["inscricao"], st.session_state["nome_investidor"],
                 st.session_state["mci_investidor"], st.session_state["cpf_cnpj_investidor"]]):
-
         st.toast("###### É necessário preencher um campo abaixo", icon=":material/warning:")
         st.stop()
 
     if all([st.session_state["inscricao"], st.session_state["nome_investidor"],
             st.session_state["mci_investidor"], st.session_state["cpf_cnpj_investidor"]]):
-
         st.toast("###### Só pode preencher um dos campos abaixo", icon=":material/warning:")
         st.stop()
 

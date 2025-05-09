@@ -14,14 +14,14 @@ engine: SQLConnection = st.connection(name="DB2", type=SQLConnection)
 st.subheader(":material/local_atm: Extrato de Rendimentos")
 
 
-@st.cache_data(show_spinner="**:material/hourglass: Preparando a listagem da empresa, aguarde...**")
+@st.cache_data(show_spinner=False)
 def load_client() -> dict[int, str]:
     load: pd.DataFrame = engine.query(
         sql="""SELECT t1.CD_CLI_EMT AS MCI, STRIP(t2.NOM) AS NOM
                FROM DB2AEB.PRM_EMP t1 INNER JOIN DB2MCI.CLIENTE t2 ON t2.COD = t1.CD_CLI_EMT
                WHERE t1.DT_ECR_CTR IS NULL
                ORDER BY STRIP(t2.NOM)""",
-        show_spinner=False,
+        show_spinner="**:material/hourglass: Preparando a listagem da empresa, aguarde...**",
         ttl=0
     )
     return {k: v for k, v in zip(load["mci"].to_list(), load["nom"].to_list())}

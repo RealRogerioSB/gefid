@@ -4,6 +4,7 @@ from email import encoders
 from email.mime.base import MIMEBase
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+from pickle import FALSE
 
 import pandas as pd
 import reportlab.rl_config
@@ -24,7 +25,7 @@ st.subheader(":material/hide_source: Cancelamento de CEPAC")
 engine: SQLConnection = st.connection(name="DB2", type=SQLConnection)
 
 
-@st.cache_data(show_spinner="**:material/hourglass: Obtendo os dados, aguarde...**")
+@st.cache_data(show_spinner=False)
 def load_extract_mci(mci: int, active: int) -> pd.DataFrame:
     return engine.query(
         sql="""
@@ -44,7 +45,7 @@ def load_extract_mci(mci: int, active: int) -> pd.DataFrame:
     )
 
 
-@st.cache_data(show_spinner="**:material/hourglass: Obtendo os dados, aguarde...**")
+@st.cache_data(show_spinner=False)
 def load_extract_cnpj(cnpj: int, active: int) -> pd.DataFrame:
     return engine.query(
         sql="""
@@ -66,7 +67,7 @@ def load_extract_cnpj(cnpj: int, active: int) -> pd.DataFrame:
     )
 
 
-@st.cache_data(show_spinner="**:material/hourglass: Obtendo os dados, aguarde...**")
+@st.cache_data(show_spinner=False)
 def load_cadastro(field: str, value: int) -> pd.DataFrame:
     return engine.query(
         sql=f"""
@@ -86,9 +87,9 @@ def load_cadastro(field: str, value: int) -> pd.DataFrame:
 
 
 with open("static/arquivos/protocolador/protocolador.txt") as f:
-    last_protocol: int = int([x.strip().split("-") for x in f.readlines()][-1][1]) + 1
+    new_protocol: int = int([x.strip().split("-") for x in f.readlines()][-1][1]) + 1
 
-st.markdown(f"Protocolo: **{date.today().year}** / DIEST: **{last_protocol}**")
+st.markdown(f"Protocolo: **{date.today().year}** / DIEST: **{new_protocol}**")
 
 st.markdown("##### Preencher os dados do pedido da Prefeitura de São Paulo")
 
@@ -117,11 +118,13 @@ with st.columns(2)[0]:
 if st.session_state["montar"]:
     if not any([st.session_state["mci_empresa"], st.session_state["cnpj_empresa"]]):
         st.toast("**Deve preencher um dos campos de MCI ou CNPJ...**", icon=":material/warning:")
+        st.stop()
 
-    elif all([st.session_state["mci_empresa"], st.session_state["cnpj_empresa"]]):
+    if all([st.session_state["mci_empresa"], st.session_state["cnpj_empresa"]]):
         st.toast("**Só pode preencher um dos campos MCI ou CNPJ e não dos dois...**", icon=":material/warning:")
+        st.stop()
 
-    else:
+    with st.spinner("**:material/hourglass: Preparando para montar PDF, aguarde...**", show_time=True):
         ativo: int = 123 if st.session_state["tipo_papel"] == "Água Branca (CAB)" else 55 \
             if st.session_state["tipo_papel"] == "Água Espraiada (CPC)" else 56
 
@@ -160,7 +163,7 @@ if st.session_state["montar"]:
         elements: list = [
             Image("static/imagens/bb.jpg", 300, 38),
             Spacer(30, 30),
-            Paragraph(f"Diretoria Operações - {date.today().year}/DIEST-{last_protocol}", header),
+            Paragraph(f"Diretoria Operações - {date.today().year}/DIEST-{new_protocol}", header),
             Paragraph(f"Rio de Janeiro, {date.today():%d/%m/%Y}", header),
             Spacer(30, 30),
             Paragraph("-", content),
@@ -203,11 +206,14 @@ if st.session_state["montar"]:
         elements.append(Paragraph("Telefone: (021) 3808-3715", footer))
         elements.append(Paragraph("Ouvidoria BB - 0800 729 5678)", footer))
 
-        arquivo: str = (f"static/escriturais/@deletar/{date.today().year}-{last_protocol}-CancelamentoCEPAC-"
-                        f"Carta-DAF{st.session_state['carta_daf']}.pdf")
-
-        pdf: SimpleDocTemplate = SimpleDocTemplate(arquivo, pagesize=A4)
+        pdf: SimpleDocTemplate = SimpleDocTemplate(
+            filename=f"static/escriturais/@deletar/{date.today().year}-{new_protocol}-CancelamentoCEPAC-Carta-"
+                     f"DAF{st.session_state['carta_daf']}.pdf",
+            pagesize=A4
+        )
         pdf.build(elements)
+
+        st.toast("**Declaração de Cancelamento de CEPAC pronta para enviar e-mail**", icon=":material/check_circle:")
 
 if st.session_state["enviar"]:
     if not any([st.session_state["to_addrs"], st.session_state["cc_addrs"]]):
@@ -229,11 +235,9 @@ if st.session_state["enviar"]:
         "html"
     ))
 
-    arquivo: str = (f"static/escriturais/@deletar/{date.today().year}-{last_protocol}-CancelamentoCEPAC-"
-                    f"Carta-DAF{st.session_state['carta_daf']}.pdf")
-
     part = MIMEBase("application", "octet-stream")
-    part.set_payload(open(arquivo, "rb").read())
+    part.set_payload(open(f"static/escriturais/@deletar/{date.today().year}-{new_protocol}-CancelamentoCEPAC-Carta"
+                          f"-DAF{st.session_state['carta_daf']}.pdf", "rb").read())
 
     encoders.encode_base64(part)
 
@@ -248,18 +252,14 @@ if st.session_state["enviar"]:
             server.sendmail(st.session_state["from_email"],
                             st.session_state["to_email"] + st.session_state["cc_email"],
                             msgcp.as_string())
-            st.toast("**Declaração de Cancelamento de CEPAC enviado por email com sucesso!**",
-                     icon=":material/check_circle:")
 
         except (smtplib.SMTPConnectError, smtplib.SMTPServerDisconnected):
-            st.toast("**Houve falha ao enviar e-mails...**", icon=":material/error:")
+            st.toast("**Houve falha ao enviar e-mails...**", icon=":material/warning:")
 
         else:
-            linha: str = (f"{date.today().year}-{last_protocol}-CancelamentoCEPAC-Carta-"
-                          f"DAF{st.session_state['carta_daf']}")
-
             with open("static/arquivos/protocolador/protocolador.txt", "a") as save_protocol:
                 save_protocol.write("\n")
-                save_protocol.write(linha)
+                save_protocol.write(f"{date.today().year}-{new_protocol}-CancelamentoCEPAC-Carta-"
+                                    f"DAF{st.session_state['carta_daf']}")
 
             st.toast("**Declaração de Cancelamento de CEPAC gerada com sucesso!**", icon=":material/check_circle:")

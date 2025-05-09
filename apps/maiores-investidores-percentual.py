@@ -41,7 +41,7 @@ def load_client() -> dict[int, str]:
         SELECT t1.CD_CLI_EMT AS MCI, STRIP(t2.NOM) AS NOM
         FROM DB2AEB.PRM_EMP t1 INNER JOIN DB2MCI.CLIENTE t2 ON t2.COD = t1.CD_CLI_EMT
         WHERE t1.DT_ECR_CTR IS NULL
-        ORDER BY t2.NOM
+        ORDER BY STRIP(t2.NOM)
         """,
         show_spinner="**:material/hourglass: Preparando a lista da empresa, aguarde...**",
         ttl=0

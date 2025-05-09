@@ -14,7 +14,7 @@ with st.columns(2)[0]:
     st.button(label="**Gerar 543**", key="gerar", type="primary", icon=":material/description:")
 
 if st.session_state["gerar"]:
-    with st.spinner("**Criando tabela, aguarde...**", show_time=True):
+    with st.spinner("**:material/hourglass: Criando tabela, aguarde...**", show_time=True):
         diretorio_destino: str = "/mnt/escriturais/@deletar/"
         diretorio_origem: str = "static/escriturais/@deletar"
 
@@ -41,7 +41,7 @@ if st.session_state["gerar"]:
 
         # Verificando se achou algum arquivo do tipo no diretório
         if len(all_files) == 0:
-            st.toast("**Não foram localizados arquivos 543a no diretório selecionado**", icon=":material/warning:")
+            st.toast("**Não foram localizados arquivos 543a no diretório selecionado**", icon=":material/error:")
             st.stop()
         else:
             # criando a lista
@@ -534,5 +534,5 @@ if st.session_state["gerar"]:
                     workbook.close()
                     writer.close()
 
-                st.toast("**543 processado com sucesso. Arquivo salvo na mesma pasta de origem**",
+                st.toast("**543 processado com sucesso! Arquivo salvo na mesma pasta de origem**",
                          icon=":material/check_circle:")

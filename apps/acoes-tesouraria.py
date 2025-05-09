@@ -1,6 +1,6 @@
 import locale
 import smtplib
-from datetime import date
+from datetime import date, timedelta
 from email import encoders
 from email.mime.base import MIMEBase
 from email.mime.multipart import MIMEMultipart
@@ -44,9 +44,9 @@ def load_client() -> dict[int, str]:
         SELECT t1.CD_CLI_EMT AS MCI, STRIP(t2.NOM) AS NOM
         FROM DB2AEB.PRM_EMP t1 INNER JOIN DB2MCI.CLIENTE t2 ON t2.COD = t1.CD_CLI_EMT
         WHERE t1.DT_ECR_CTR IS NULL
-        ORDER BY t2.NOM
+        ORDER BY STRIP(t2.NOM)
         """,
-        show_spinner="**:material/hourglass: Obtendo os dados, aguarde...**",
+        show_spinner="**:material/hourglass: Preparando a listagem da empresa, aguarde...**",
         ttl=0
     )
     return {k: v for k, v in zip(load["mci"].to_list(), load["nom"].to_list())}
@@ -122,7 +122,7 @@ def load_empresa(_mci: int, _data_ant: date, _data_atual: date) -> pd.DataFrame:
             CAST(t5.CD_CLI_ACNT AS INTEGER),
             data DESC
         """,
-        show_spinner="**:material/hourglass: Obtendo os dados, aguarde...**",
+        show_spinner=False,
         ttl=0,
         params=dict(mci=_mci, data_ant=_data_ant, data_atual=_data_atual)
     )
@@ -149,79 +149,81 @@ with st.columns(2)[0]:
               disabled=st.session_state["state_selectbox"])
 
 if st.session_state["montar"]:
-    data_ant: date = date(
-        st.session_state["data"].year if 1 < st.session_state["data"].month <= 12 else st.session_state["data"].year - 1,
-        st.session_state["data"].month - 1 if 1 < st.session_state["data"].month <= 12 else 12,
-        28
-    )
+    with st.spinner("**:material/hourglass: Preparando os dados para a declaração, aguarde...**", show_time=True):
+        data_ant: date = (st.session_state["data"].replace(day=1) - timedelta(days=1)).replace(day=28)
 
-    office: pd.DataFrame = load_empresa(mci, data_ant, st.session_state["data"])
+        office: pd.DataFrame = load_empresa(mci, data_ant, st.session_state["data"])
 
-    if not office.empty:
-        office["pk"] = f"{office['mci']}-{office['cod_titulo']}-{office['custodiante']}"
-        office = office.groupby("pk").first()
-        office = office[office["quantidade"].ne(0)]
+        if not office.empty:
+            # office["pk"] = f"{office['mci']}-{office['cod_titulo']}-{office['custodiante']}"
+            # office = office.groupby("pk").first()
+            office = office[office["quantidade"].ne(0)]
 
-        arquivo: str = (f"static/escriturais/@deletar/AcoesEmTesouraria-{st.session_state['empresa']} - "
-                        f"{st.session_state['data']}.pdf")
+            reportlab.rl_config.warnOnMissingFontGlyphs = 0
 
-        reportlab.rl_config.warnOnMissingFontGlyphs = 0
+            pdfmetrics.registerFont(TTFont("VeraBI", "VeraBI.ttf"))
+            pdfmetrics.registerFont(TTFont("Vera", "Vera.ttf"))
+            pdfmetrics.registerFont(TTFont("VeraBd", "VeraBd.ttf"))
+            pdfmetrics.registerFont(TTFont("VeraIt", "VeraIt.ttf"))
 
-        pdfmetrics.registerFont(TTFont("VeraBI", "VeraBI.ttf"))
-        pdfmetrics.registerFont(TTFont("Vera", "Vera.ttf"))
-        pdfmetrics.registerFont(TTFont("VeraBd", "VeraBd.ttf"))
-        pdfmetrics.registerFont(TTFont("VeraIt", "VeraIt.ttf"))
+            cnv: canvas.Canvas = canvas.Canvas(
+                filename=f"static/escriturais/@deletar/AcoesEmTesouraria-{st.session_state['empresa']} - "
+                         f"{st.session_state['data']:%d.%m.%Y}.pdf",
+                pagesize=A4
+            )
+            cnv.drawImage("static/imagens/bb.jpg", 40, 780, 300, 38)
+            cnv.setFont("Vera", 11)
+            cnv.drawString(330, 750, f"Diretoria Operações - {date.today().year}/DIEST-{ultimo_protocolo}")
+            cnv.drawString(330, 730, f"Rio de Janeiro, {date.today():%d de %B de %Y}")
+            cnv.drawString(40, 680, "Prezados Senhores,")
+            cnv.drawString(40, 650, f"O Banco Brasil S.A., Instituição Depositária de Ações Escriturais "
+                                    f"conforme Ato Declaratório")
+            cnv.drawString(40, 635, f"nº 4581, de 14/11/1997, da Comissão de Valores Mobiliários - CVM, "
+                                    f"na execução dos atos")
+            cnv.drawString(40, 620, f"relativos aos serviços de escrituração das ações de emissão da "
+                                    f"empresa abaixo informa a")
+            cnv.drawString(40, 605, f"quantidade de ativos na tesouraria no ambiente escritural (Livro) "
+                                    f"em {st.session_state['data']:%d/%m/%Y}.")
 
-        cnv: canvas.Canvas = canvas.Canvas(arquivo, pagesize=A4)
-        cnv.drawImage("static/imagens/bb.jpg", 40, 780, 300, 38)
-        cnv.setFont("Vera", 11)
-        cnv.drawString(330, 750, f"Diretoria Operações - {date.today().year}/DIEST-{ultimo_protocolo}")
-        cnv.drawString(330, 730, f"Rio de Janeiro, {date.today():%d de %B de %Y}")
-        cnv.drawString(40, 680, "Prezados Senhores,")
-        cnv.drawString(40, 650, f"O Banco Brasil S.A., Instituição Depositária de Ações Escriturais conf"
-                                f"orme Ato Declaratório")
-        cnv.drawString(40, 635, f"nº 4581, de 14/11/1997, da Comissão de Valores Mobiliários - CVM, na e"
-                                f"xecução dos atos")
-        cnv.drawString(40, 620, f"relativos aos serviços de escrituração das ações de emissão da empresa"
-                                f" abaixo informa a")
-        cnv.drawString(40, 605, f"quantidade de ativos na tesouraria no ambiente escritural (Livro) em "
-                                f"{st.session_state['data']:%d/%m/%Y}.")
+            cnpj: int = office["cpf_cnpj"].iloc[0]
 
-        cnpj: int = office["cpf_cnpj"].iloc[0]
+            cnv.drawString(40, 575, f"Razão Social: {st.session_state['empresa']}")
+            cnv.drawString(40, 560, f"CNPJ: {cnpj}")
 
-        cnv.drawString(40, 575, f"Razão Social: {st.session_state['empresa']}")
-        cnv.drawString(40, 560, f"CNPJ: {cnpj}")
+            y: int = 0
+            for x in office.index:
+                cnv.drawString(40, 530 - y, f"Tipo: {list(office['sigla'].loc[office.index == x])[0]}"
+                                            f" {list(office['custodiante'].loc[office.index == x])[0]}")
+                cnv.drawString(40, 515 - y, f"Saldo: {list(office['quantidade'].loc[office.index == x])[0]}")
+                y += 45
 
-        y: int = 0
-        for x in office.index:
-            cnv.drawString(40, 530 - y, f"Tipo: {list(office['sigla'].loc[office.index == x])[0]}"
-                                        f" {list(office['custodiante'].loc[office.index == x])[0]}")
-            cnv.drawString(40, 515 - y, f"Saldo: {list(office['quantidade'].loc[office.index == x])[0]}")
-            y += 45
+            cnv.setFont("Vera", 8)
+            cnv.drawString(40, 90, "_" * 129)
+            cnv.drawString(40, 75, "DIRETORIA OPERAÇÕES - DIOPE")
+            cnv.drawString(40, 60, "Gerência Executiva de Negócios em Serviços Fiduciários - Gerência de "
+                                   "Escrituração e Trustee")
+            cnv.drawString(40, 45, "Avenida República do Chile, 330 - 9º andar - Torre Oeste - Centro - "
+                                   "Rio de Janeiro RJ")
+            cnv.drawString(40, 30, "Telefone: (21) 3808-3715")
+            cnv.drawString(40, 15, "Ouvidoria BB - 0800 729 5678")
 
-        cnv.setFont("Vera", 8)
-        cnv.drawString(40, 90, "_" * 129)
-        cnv.drawString(40, 75, "DIRETORIA OPERAÇÕES - DIOPE")
-        cnv.drawString(40, 60, "Gerência Executiva de Negócios em Serviços Fiduciários - Gerência de "
-                               "Escrituração e Trustee")
-        cnv.drawString(40, 45, "Avenida República do Chile, 330 - 9º andar - Torre Oeste - Centro - "
-                               "Rio de Janeiro RJ")
-        cnv.drawString(40, 30, "Telefone: (21) 3808-3715")
-        cnv.drawString(40, 15, "Ouvidoria BB - 0800 729 5678")
+            cnv.save()
 
-        cnv.save()
+            st.toast("**Declaração de Ações em Tesouraria gerada com sucesso! Favor preencher e-mails.**",
+                     icon=":material/check_circle:")
 
-        st.toast("**Declaração de Ações em Tesouraria gerada com sucesso! Favor preencher e-mails.**",
-                 icon=":material/check_circle:")
+            st.session_state["state_selectbox"] = False
+            st.rerun()
 
-        st.session_state["state_selectbox"] = False
-        st.rerun()
-
-    else:
-        st.toast("**Não identificamos ações em tesouraria para o referido cliente**", icon=":material/warning:")
+        else:
+            st.toast("**Não identificamos ações em tesouraria para o referido cliente**", icon=":material/warning:")
 
 if st.session_state["enviar"]:
-    if any([st.session_state["to_addrs"], st.session_state["cc_addrs"]]):
+    if not any([st.session_state["to_addrs"], st.session_state["cc_addrs"]]):
+        st.toast("**É obrigatório preencher um dos campos de e-mail**", icon=":material/warning:")
+        st.stop()
+
+    with st.spinner("**:material/hourglass: Preparando para enviar e-mail, aguarde...**", show_time=True):
         from_addr: str = "aescriturais@bb.com.br"
         to_addrs: list[str] = st.session_state["to_addrs"].replace(" ", "").split(",")
         cc_addrs: list[str] = st.session_state["cc_addrs"].replace(" ", "").split(",")
@@ -247,7 +249,7 @@ if st.session_state["enviar"]:
         part: MIMEBase = MIMEBase("application", "octet-stream")
 
         arquivo: str = (f"static/escriturais/@deletar/AcoesEmTesouraria-{st.session_state['empresa']} - "
-                        f"{st.session_state['data']}.pdf")
+                        f"{st.session_state['data']:%d.%m.%Y}.pdf")
 
         with open(arquivo, "rb") as f:
             payload: bytes = f.read()
@@ -269,7 +271,7 @@ if st.session_state["enviar"]:
                 server.sendmail(from_addr, to_addrs + cc_addrs, msg.as_string())
 
             except smtplib.SMTPException:
-                st.toast("**Falha ao enviar e-mail**", icon=":material/error:")
+                st.toast("**Falha ao enviar e-mail...**", icon=":material/error:")
 
             else:
                 with open("static/arquivos/protocolador/protocolador.txt", "a") as save_protocol:
@@ -277,9 +279,7 @@ if st.session_state["enviar"]:
                     save_protocol.write(f"{date.today().year}-{ultimo_protocolo}-Protocolo Ações em "
                                         f"Tesouraria-{st.session_state['empresa']}")
 
-                st.toast("**E-mail enviado com sucesso**", icon=":material/check_circle:")
+                st.toast("**E-mail enviado com sucesso!**", icon=":material/check_circle:")
 
                 st.session_state["state_selectbox"] = True
                 st.rerun()
-    else:
-        st.toast("**É obrigatório preencher um dos campos de e-mail**", icon=":material/warning:")

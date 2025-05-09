@@ -30,9 +30,9 @@ st.divider()
 
 st.markdown("**Fundos enviados no último arquivo**")
 
-with st.spinner(text=":material/hourglass: Obtendo os dados, aguarde...", show_time=True):
+with st.spinner(text=":material/hourglass: Preparando os dados, aguarde...", show_time=True):
     editor = st.data_editor(
-        data=st.session_state["editor"], num_rows="dynamic", row_height=25,
+        data=st.session_state["editor"],
         column_config={
             "codigo": st.column_config.TextColumn(label="Código", required=True, max_chars=4,
                                                   validate="^[A-Z0-9]+$"),
@@ -48,19 +48,24 @@ with st.spinner(text=":material/hourglass: Obtendo os dados, aguarde...", show_t
                                                         options=["Drive", "YMF", "Itau"]),
             "carteira": st.column_config.NumberColumn(label="Carteira", required=True),
         },
+        num_rows="dynamic",
+        row_height=25,
     )
 
-if st.button(label="**Enviar**", type="primary"):
-    # st.session_state["editor"].to_csv("static/arquivos/circular3945/cadastro2.csv", index=False)
-    st.toast("**A planilha foi enviada**", icon=":material/task_alt:")
+st.button(label="**Salvar**", key="save", type="primary", icon=":material/save:")
 
-if st.button("**Atualizou?**", type="primary"):
+st.button(label="**Reverter**", key="reply", type="primary", icon=":material/reply:")
+
+if st.session_state["save"]:
     if not editor.equals(data):
         st.toast("**A planilha foi atualizada**", icon=":material/edit_square:")
+        st.session_state["editor"].to_csv("static/arquivos/circular3945/cadastro2.csv", index=False)
+        st.rerun()
+
     else:
         st.toast("**A planilha ainda não foi atualizada**", icon=":material/edit_square:")
 
-if st.button(label="**Reverter**", type="primary"):
-    st.toast("**A planilha foi restaurada**", icon=":material/check_circle:")
+if st.session_state["reply"]:
     st.session_state["editor"] = data.copy()
+    st.toast("**A planilha foi restaurada**", icon=":material/check_circle:")
     st.rerun()
