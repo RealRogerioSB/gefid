@@ -11,13 +11,21 @@ st.columns([3, 1])[0].write("##### Os arquivos EDIV e o IRMCI devem ser colocado
                             "P:\MER\Acoes_Escriturais\@deletar\ e escolhidos abaixo")
 
 col1, col2, _, _ = st.columns([1, 1, 0.5, 0.5])
-up_ediv = col1.file_uploader(label="**Arquivo EDIV:**", help="**Importa o arquivo de EDIV**")
-up_irmci = col2.file_uploader(label="**Arquivo IRMCI:**", help="**Importa o arquivo de IRMCI**")
+col1.file_uploader(label="**Arquivo EDIV:**", key="up_ediv")
+col2.file_uploader(label="**Arquivo IRMCI:**", key="up_irmci")
 
 if st.button(label="**:material/content_cut: Separar Processos**", type="primary"):
-    if all([up_ediv, up_irmci]):
-        # lendo ediv
-        dados = pd.read_fwf(up_ediv, colspecs=[(0, 2), (2, 397)], names=["tp_registro", "restante"], encoding="latin")
+    if not all([st.session_state["up_ediv"], st.session_state["up_irmci"]]):
+        st.toast("**Precisa de 2 arquivos para importar...**", icon=":material/warning:")
+        st.stop()
+
+    with st.spinner("**:material/hourglass: Preparando os dados para exportar, aguarde...**", show_time=True):
+        dados: pd.DataFrame = pd.read_fwf(
+            filepath_or_buffer=st.session_state["up_ediv"],
+            colspecs=[(0, 2), (2, 397)],
+            names=["tp_registro", "restante"],
+            encoding="latin"
+        )
         # primeiro filtro
         dados = dados[dados["tp_registro"].eq(2)]
 
@@ -36,12 +44,15 @@ if st.button(label="**:material/content_cut: Separar Processos**", type="primary
         dados["percent_ir"] = dados["restante"].str[387:392].astype("int64")
 
         # removendo os espaços na frente e atrás do nome
-        dados_obj = dados.select_dtypes(["object"])
-        dados[dados_obj.columns] = dados_obj.apply(lambda w: w.str.strip())
+        dados[dados.select_dtypes(["object"]).columns] = dados.select_dtypes(["object"]).apply(lambda w: w.str.strip())
 
         # lendo IRMCI
-        dfirmci = pd.read_fwf(up_irmci, colspecs=[(145, 152), (0, 15), (75, 89)],
-                              names=["processo", "cpf_cnpj", "irmci"], encoding="latin")
+        dfirmci: pd.DataFrame = pd.read_fwf(
+            filepath_or_buffer=st.session_state["up_irmci"],
+            colspecs=[(145, 152), (0, 15), (75, 89)],
+            names=["processo", "cpf_cnpj", "irmci"],
+            encoding="latin"
+        )
 
         # definindo tipos do df do irmci
         dfirmci["processo"] = dfirmci["processo"].astype("int64")
@@ -59,10 +70,10 @@ if st.button(label="**:material/content_cut: Separar Processos**", type="primary
         df.drop(["tp_registro", "restante"], axis=1, inplace=True)
 
         # incluindo a coluna de paraíso fiscal
-        df.insert(7, "Paraiso?", '')
+        df.insert(7, "Paraiso?", "")
 
         # criando lista de países paraísos fiscais
-        lista = [
+        lista: list[str] = [
             "ABW", "AIA", "AND", "ARE", "ASM", "ATG", "BHR", "BHS", "BLZ", "BMU", "BRB", "BRN", "COK", "CYM",
             "DJI", "DMA", "GGY", "GGY", "GIB", "GRD", "HKG", "IRL", "JEY", "JEY", "KIR", "LBN", "LBR", "LCA",
             "LIE", "MAC", "MDV", "MHL", "MSR", "MUS", "NFK", "NIU", "OMN", "PAN", "PNC", "PYF", "SHN", "SLB",
@@ -77,17 +88,17 @@ if st.button(label="**:material/content_cut: Separar Processos**", type="primary
         lista_processos = df["processo"].unique()
 
         # incluindo a coluna de edvi_ant e irmci
-        df.insert(12, "ediv_ant", '')
+        df.insert(12, "ediv_ant", "")
 
         df = df[["processo", "isin", "cpf_cnpj", "nome", "tp_pessoa", "tp_cliente", "pais", "Paraiso?", "quantidade",
                  "valor_bruto", "valor_liquido", "evento", "irmci", "ediv_ant", "percent_ir"]]
 
         # pegando a data de hoje
-        today = str(date.today()).replace("-", '')
+        today: str = str(date.today()).replace("-", "")
 
         for x in range(len(lista_processos)):
             # separando os dataframes por processos
-            nome_df = f"df{x + 1}"
+            nome_df: str = f"df{x + 1}"
             globals()[nome_df] = df[(df["processo"].eq(lista_processos[x]))]
 
             # apagando a coluna de processo
@@ -174,5 +185,4 @@ if st.button(label="**:material/content_cut: Separar Processos**", type="primary
             writer.close()
             workbook.close()
 
-    else:
-        st.toast("**Precisa de 2 arquivos para importar...**", icon=":material/warning:")
+            st.toast("**Feito! O arquivo já está na pasta específica**", icon=":material/check_circle:")

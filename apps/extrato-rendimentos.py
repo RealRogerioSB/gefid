@@ -7,27 +7,24 @@ from unidecode import unidecode
 
 locale.setlocale(locale.LC_ALL, "pt_BR.UTF-8")
 
-st.cache_data.clear()
-
 engine: SQLConnection = st.connection(name="DB2", type=SQLConnection)
 
 st.subheader(":material/local_atm: Extrato de Rendimentos")
 
 
-@st.cache_data(show_spinner=False)
+@st.cache_data(show_spinner="**:material/hourglass: Preparando a listagem da empresa, aguarde...**")
 def load_client() -> dict[int, str]:
     load: pd.DataFrame = engine.query(
         sql="""SELECT t1.CD_CLI_EMT AS MCI, STRIP(t2.NOM) AS NOM
                FROM DB2AEB.PRM_EMP t1 INNER JOIN DB2MCI.CLIENTE t2 ON t2.COD = t1.CD_CLI_EMT
                WHERE t1.DT_ECR_CTR IS NULL
                ORDER BY STRIP(t2.NOM)""",
-        show_spinner="**:material/hourglass: Preparando a listagem da empresa, aguarde...**",
+        show_spinner=False,
         ttl=0
     )
     return {k: v for k, v in zip(load["mci"].to_list(), load["nom"].to_list())}
 
 
-@st.cache_data(show_spinner=False)
 def load_cadastro(field: str, value: int | str) -> pd.DataFrame:
     return engine.query(
         sql=f"""
@@ -41,7 +38,6 @@ def load_cadastro(field: str, value: int | str) -> pd.DataFrame:
     )
 
 
-@st.cache_data(show_spinner=False)
 def load_extrato(field: str, _mci: int, value: int | str) -> pd.DataFrame:
     return engine.query(
         sql=f"""
@@ -110,7 +106,7 @@ if st.session_state["pesquisar"]:
         st.toast("**Só deve preencher 1 campo abaixo**", icon=":material/warning:")
         st.stop()
 
-    with st.spinner("Pesquisando, aguarde...", show_time=True):
+    with st.spinner("**:material/hourglass: Pesquisando os dados, aguarde...**", show_time=True):
         df_cadastro: pd.DataFrame = load_cadastro(
             field="nom" if st.session_state["nome_investidor"] else
             "cod" if st.session_state["mci_investidor"] else "cod_cpf_cgc",
@@ -130,14 +126,24 @@ if st.session_state["pesquisar"]:
         )
 
         if not df_extrato.empty:
-            df_extrato["DATA"] = pd.to_datetime(df_extrato["DATA"]).dt.strftime("%d.%m.%Y")
-
-            st.columns([3.5, 0.5])[0].data_editor(
+            st.data_editor(
                 data=df_extrato,
                 hide_index=True,
                 use_container_width=True,
-                key="de_extrato",
+                column_config={
+                    "tipo": st.column_config.NumberColumn("Tipo"),
+                    "DATA": st.column_config.DateColumn("Data", format="DD.MM.YYYY"),
+                    "quantidade": st.column_config.NumberColumn("Quantidade"),
+                    "valor": st.column_config.NumberColumn("Valor", format="dollar"),
+                    "valor_ir": st.column_config.NumberColumn("Valor IR", format="dollar"),
+                    "valor_liquido": st.column_config.NumberColumn("Valor Líquido", format="dollar"),
+                    "tipo_direito": st.column_config.TextColumn("Tipo de Direito"),
+                    "estado": st.column_config.TextColumn("Estado"),
+                    "forma_pagamento": st.column_config.TextColumn("Forma de Pagamento"),
+                },
             )
+
+            st.button("**Voltar**", key="back", type="primary", icon=":material/reply:")
 
         else:
             st.toast("**Não foram encontrados rendimentos para a pesquisa realizada**", icon=":material/error:")

@@ -14,12 +14,11 @@ from streamlit.connections import SQLConnection
 
 locale.setlocale(locale.LC_ALL, "pt_BR.UTF-8")
 
-st.cache_data.clear()
+engine: SQLConnection = st.connection(name="DB2", type=SQLConnection)
 
-engine = st.connection(name="DB2", type=SQLConnection)
+st.subheader(":material/published_with_changes: Autorregulação BB")
 
 
-@st.cache_data(show_spinner=False)
 def load_evid(_data_pos: date) -> pd.DataFrame:
     return engine.query(
         sql="""
@@ -47,8 +46,6 @@ pdfmetrics.registerFont(TTFont("VeraBd", "VeraBd.ttf"))
 pdfmetrics.registerFont(TTFont("VeraIt", "VeraIt.ttf"))
 pdfmetrics.registerFont(TTFont("VeraBI", "VeraBI.ttf"))
 
-st.subheader(":material/published_with_changes: Autorregulação BB")
-
 with st.columns(3)[0]:
     st.markdown("##### Gerar Evidências")
     col1, col2 = st.columns(2)
@@ -73,8 +70,8 @@ with st.columns(3)[0]:
 
 if st.session_state["btn_ev"]:
     data_pos: date = date(
-        st.session_state.ano_evid + 1 if st.session_state.mes_evid == 12 else st.session_state.ano_evid,
-        1 if st.session_state.mes_evid == 12 else st.session_state.mes_evid + 1,
+        st.session_state["ano_evid"] + 1 if st.session_state["mes_evid"] == 12 else st.session_state["ano_evid"],
+        1 if st.session_state["mes_evid"] == 12 else st.session_state["mes_evid"] + 1,
         1
     )
 
@@ -104,14 +101,8 @@ if st.session_state["btn_ev"]:
     cnv.drawString(x=350, y=730, text=f"Rio de Janeiro, {date.today():%d/%m/%Y}")
     cnv.drawString(x=40, y=680, text="Prezados Senhores,"),
 
-    cnv.drawString(
-        x=40, y=650,
-        text=f"Informamos evidenciações de posição e participação societária das principais",
-    )
-    cnv.drawString(
-        x=40, y=635,
-        text=f"instituições com relação direta ao acionista controlador do Banco do Brasil,",
-    )
+    cnv.drawString(x=40, y=650, text=f"Informamos evidenciações de posição e participação societária das principais")
+    cnv.drawString(x=40, y=635, text=f"instituições com relação direta ao acionista controlador do Banco do Brasil,")
     cnv.drawString(x=40, y=620, text=f"referente ao mês de {last_day:%B de %Y}.")
 
     coord_y: int = 580
@@ -120,10 +111,8 @@ if st.session_state["btn_ev"]:
         cnv.drawString(x=40, y=coord_y, text=f"Empresa: {label_evidence[x]['empresa']}")
         cnv.drawString(x=350, y=coord_y, text=f"CNPJ: {label_evidence[x]['cnpj']}")
         cnv.drawString(x=40, y=coord_y - 15, text=f"Ações Ordinárias: {dfevid['quantidade'].iloc[x]}")
-        cnv.drawString(
-            x=350, y=coord_y - 15,
-            text=f"Participação: {dfevid['quantidade'].iloc[x] / 2865417020:.7%}".replace(".", ",")
-        )
+        cnv.drawString(x=350, y=coord_y - 15,
+                       text=f"Participação: {dfevid['quantidade'].iloc[x] / 2865417020:.7%}".replace(".", ","))
 
         coord_y -= 50
 
@@ -143,18 +132,18 @@ if st.session_state["btn_ev"]:
 
 if st.session_state["btn_ac"]:
     data_pos: date = date(
-        st.session_state.ano_aci + 1 if st.session_state.mes_aci == 12 else st.session_state.ano_aci,
-        1 if st.session_state.mes_aci == 12 else st.session_state.mes_aci + 1,
+        st.session_state["ano_aci"] + 1 if st.session_state["mes_aci"] == 12 else st.session_state["ano_aci"],
+        1 if st.session_state["mes_aci"] == 12 else st.session_state["mes_aci"] + 1,
         1
     )
 
-    if st.session_state.up_base_aci is None:
-        st.toast("**Ainda não baixou o arquivo 738 correspondente...**", icon=":material/warning:")
+    if not st.session_state["up_base_aci"]:
+        st.toast("**Ainda não baixou o arquivo 738 correspondente...**", icon=":material/error:")
         st.stop()
 
     with st.spinner("**:material/hourglass: Preparando os dados, aguarde...**", show_time=True):
         dados: pd.DataFrame = pd.read_fwf(
-            filepath_or_buffer=st.session_state.up_base_aci,
+            filepath_or_buffer=st.session_state["up_base_aci"],
             colspecs=[(0, 9), (9, 24), (39, 89), (99, 101), (137, 140), (345, 360),
                       (387, 402), (429, 444), (471, 486), (513, 528), (555, 570)],
             names=["MCI", "CPF", "NOME", "TP", "PAIS", "qtd_bb_1", "qtd_cblc_1",
@@ -205,8 +194,8 @@ if st.session_state["btn_ac"]:
             worksheet2 = workbook.add_worksheet("2")
     
             # exportando base
-            dados[:1000000].to_excel(writer, index=False, sheet_name="1", header=False, startrow=2)
-            dados[1000000:].to_excel(writer, index=False, sheet_name="2", header=False, startrow=2)
+            dados[:int(1e6)].to_excel(writer, index=False, sheet_name="1", header=False, startrow=2)
+            dados[int(1e6):].to_excel(writer, index=False, sheet_name="2", header=False, startrow=2)
     
             # definindo formatos
             menu_format = workbook.add_format(dict(align="center", bold=True, bg_color="#9BC2E6", font_size=16))
@@ -305,12 +294,12 @@ if st.session_state["btn_ac"]:
 
 if st.session_state["btn_au"]:
     data_pos = date(
-        st.session_state.ano_auto + 1 if st.session_state.mes_auto == 12 else st.session_state.ano_auto,
-        1 if st.session_state.mes_auto == 12 else st.session_state.mes_auto + 1,
+        st.session_state["ano_auto"] + 1 if st.session_state["mes_auto"] == 12 else st.session_state["ano_auto"],
+        1 if st.session_state["mes_auto"] == 12 else st.session_state["mes_auto"] + 1,
         1
     ) - timedelta(days=1)
 
-    if not all([st.session_state.up_base_738, st.session_state.up_base_siri]):
+    if not all([st.session_state["up_base_738"], st.session_state["up_base_siri"]]):
         st.toast("**Não subiu os 2 arquivos exigidos...**", icon=":material/warning:")
         st.stop()
 
@@ -334,13 +323,13 @@ if st.session_state["btn_au"]:
     
         def arquivo_siri() -> None:
             # carrega arquivo Base Acionária
-            baseacionaria = load_workbook(st.session_state.up_base_siri)
+            base_acionaria = load_workbook(st.session_state.up_base_siri)
     
             def aba_base() -> None:
                 mes_anterior: date = data_pos - timedelta(days=31)
     
                 # escolhe a aba do mês anterior ao mês da autorregulação
-                sheet1 = baseacionaria[f"Base Acionária - {mes_anterior:%B de %Y}"]
+                sheet1 = base_acionaria[f"Base Acionária - {mes_anterior:%B de %Y}"]
     
                 # deleta colunas dos mes -2
                 sheet1.delete_cols(idx=3, amount=3)
@@ -505,7 +494,7 @@ if st.session_state["btn_au"]:
     
             def aba_diretoria() -> None:
                 # carrega aba
-                sheet2 = baseacionaria["Membros da Diretoria"]
+                sheet2 = base_acionaria["Membros da Diretoria"]
     
                 dados["CPF"] = dados["CPF"].astype("int64")
     
@@ -522,8 +511,8 @@ if st.session_state["btn_au"]:
                         else:
                             continue
     
-                baseacionaria.save(filename=f"static/escriturais/@deletar/Autorregulação_-_DIOPE-GEFID_-_"
-                                            f"{data_pos:%B de %Y}.xlsx")
+                base_acionaria.save(filename=f"static/escriturais/@deletar/Autorregulação_-_DIOPE-GEFID_-_"
+                                             f"{data_pos:%B de %Y}.xlsx")
     
             aba_base()
             aba_diretoria()

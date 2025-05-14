@@ -3,12 +3,13 @@ from datetime import date
 import pandas as pd
 import streamlit as st
 
-data = pd.read_csv("static/arquivos/circular3945/cadastro.csv", delimiter=";")
+data: pd.DataFrame = pd.read_csv("static/arquivos/circular3945/cadastro.csv", delimiter=";")
 
 if "editor" not in st.session_state:
     st.session_state["editor"] = data
 
 st.subheader(":material/cycle: Circular BACEN 3945")
+
 st.columns([3, 1])[0].write("##### Envio de arquivo à **BB Asset** com a informação do fechamento mensal das carteiras"
                             " dos fundos escriturados pelo BB, para atender a Carta Circular 3945 do Banco Central.")
 
@@ -18,21 +19,20 @@ with st.columns(4)[0]:
 
 col = st.columns([1.5, 0.5, 1, 1])
 
-with col[0]:
-    st.slider(label="**Mês:**", min_value=1, max_value=12, key="mês",
+col[0].slider(label="**Mês:**", min_value=1, max_value=12, key="mês",
               value=date.today().month - 1 if 1 <= date.today().month - 1 else 12)
 
-with col[1]:
-    st.selectbox(label="**Ano:**", options=range(date.today().year, 1995, -1), key="ano",
+col[1].selectbox(label="**Ano:**", options=range(date.today().year, 1995, -1), key="ano",
                  index=0 if 1 <= date.today().month - 1 else 1)
 
 st.divider()
 
 st.markdown("**Fundos enviados no último arquivo**")
 
-with st.spinner(text=":material/hourglass: Preparando os dados, aguarde...", show_time=True):
-    editor = st.data_editor(
+with st.spinner(text="**:material/hourglass: Preparando os dados, aguarde...**", show_time=True):
+    editor: pd.DataFrame = st.data_editor(
         data=st.session_state["editor"],
+        height=388,
         column_config={
             "codigo": st.column_config.TextColumn(label="Código", required=True, max_chars=4,
                                                   validate="^[A-Z0-9]+$"),
@@ -49,21 +49,22 @@ with st.spinner(text=":material/hourglass: Preparando os dados, aguarde...", sho
             "carteira": st.column_config.NumberColumn(label="Carteira", required=True),
         },
         num_rows="dynamic",
-        row_height=25,
     )
 
-st.button(label="**Salvar**", key="save", type="primary", icon=":material/save:")
+col = st.columns(9)
 
-st.button(label="**Reverter**", key="reply", type="primary", icon=":material/reply:")
+col[0].button(label="**Salvar**", key="save", type="primary", icon=":material/save:", use_container_width=True)
+
+col[1].button(label="**Reverter**", key="reply", type="primary", icon=":material/reply:", use_container_width=True)
 
 if st.session_state["save"]:
     if not editor.equals(data):
-        st.toast("**A planilha foi atualizada**", icon=":material/edit_square:")
+        st.toast("**A planilha foi atualizada**", icon=":material/check_circle:")
         st.session_state["editor"].to_csv("static/arquivos/circular3945/cadastro2.csv", index=False)
         st.rerun()
 
     else:
-        st.toast("**A planilha ainda não foi atualizada**", icon=":material/edit_square:")
+        st.toast("**A planilha ainda não foi atualizada**", icon=":material/error:")
 
 if st.session_state["reply"]:
     st.session_state["editor"] = data.copy()

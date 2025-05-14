@@ -1,21 +1,18 @@
 import io
-import zipfile
 from datetime import date
 
 import pandas as pd
 import streamlit as st
 from streamlit.connections import SQLConnection
 
-st.cache_data.clear()
-
-engine = st.connection(name="DB2", type=SQLConnection)
+engine: SQLConnection = st.connection(name="DB2", type=SQLConnection)
 
 st.subheader(":material/paid: Rendimentos Pagos")
 
 
-@st.cache_data(show_spinner=False)
+@st.cache_data(show_spinner=":material/hourglass: Preparando a lista de empresa, aguarde...")
 def load_active(active: str) -> dict[int, str]:
-    df = engine.query(
+    load: pd.DataFrame = engine.query(
         sql=f"""
             SELECT
                 t1.CD_CLI_EMT AS MCI,
@@ -27,20 +24,22 @@ def load_active(active: str) -> dict[int, str]:
             WHERE
                 t1.DT_ECR_CTR IS {active}
         """,
-        show_spinner=":material/hourglass: Preparando a lista de empresa, aguarde...",
+        show_spinner=False,
         ttl=0,
     )
-    return {k: v for k, v in zip(df["mci"].to_list(), df["nom"].to_list())}
+    return {k: v for k, v in zip(load["mci"].to_list(), load["nom"].to_list())}
 
 
-@st.cache_data(show_spinner=False)
 def load_report(_mci: int, _ano: int, _mes: int) -> pd.DataFrame:
     return engine.query(
         sql="""
             SELECT
                 t1.CD_CLI_TITR AS MCI,
                 STRIP(t2.NOM) AS INVESTIDOR,
-                CAST(t2.COD_CPF_CGC AS BIGINT) AS CPF_CNPJ,
+                CASE
+                    WHEN t2.COD_TIPO = 2 THEN LPAD(CAST(t2.COD_CPF_CGC AS BIGINT), 14, '0')
+                    ELSE LPAD(CAST(t2.COD_CPF_CGC AS BIGINT), 11, '0')
+                END AS CPF_CNPJ,
                 CASE WHEN t2.COD_TIPO = 1 THEN 'PF' ELSE 'PJ' END AS TIPO_PESSOA,
                 t1.DT_MVT_DRT AS DATA,
                 t4.NM_TIP_DRT AS DIREITO,
@@ -71,7 +70,6 @@ def load_report(_mci: int, _ano: int, _mes: int) -> pd.DataFrame:
     )
 
 
-@st.cache_data(show_spinner=False)
 def load_data(_mci: int) -> pd.DataFrame:
     return engine.query(
         sql="""
@@ -98,7 +96,7 @@ def load_data(_mci: int) -> pd.DataFrame:
 
 st.radio(label="**Situação de Clientes:**", options=["ativos", "inativos"], key="option_active")
 
-kv = load_active("NULL") if st.session_state["option_active"] == "ativos" else load_active("NOT NULL")
+kv: dict[int, str] = load_active("NULL") if st.session_state["option_active"] == "ativos" else load_active("NOT NULL")
 
 with st.columns(2)[0]:
     st.selectbox(
@@ -107,13 +105,13 @@ with st.columns(2)[0]:
         key="empresa",
     )
 
-    mci = next((chave for chave, valor in kv.items() if valor == st.session_state["empresa"]), 0)
+    mci: int = next((chave for chave, valor in kv.items() if valor == st.session_state["empresa"]), 0)
 
     col = st.columns([2, 1, 1])
     col[0].slider(label="**Mês:**", min_value=1, max_value=12, value=date.today().month, key="mês")
     col[1].selectbox(label="**Ano:**", options=range(date.today().year, 1995, -1), key="ano")
 
-    params = dict(type="primary", use_container_width=True)
+    params: dict[str, bool | str] = dict(type="primary", use_container_width=True)
 
     st.divider()
 
@@ -125,9 +123,9 @@ with st.columns(2)[0]:
 
 if st.session_state["view"]:
     with st.spinner("**:material/hourglass: Preparando os dados para exibir, aguarde...**", show_time=True):
-        get_view = load_report(mci, st.session_state["ano"], st.session_state["mês"])
+        get_view: pd.DataFrame = load_report(mci, st.session_state["ano"], st.session_state["mês"])
         if not get_view.empty:
-            get_data = load_data(mci)
+            get_data: pd.DataFrame = load_data(mci)
 
             st.write(f"**MCI:** {get_data['mci'].iloc[0]}")
             st.write(f"**EMPRESA:** {get_data['empresa'].iloc[0]}")
@@ -140,27 +138,43 @@ if st.session_state["view"]:
             st.write(f"**TOTAL LÍQUIDO:** R$ {float(get_view['valor_liquido'].sum()):_.2f}"
                      .replace(".", ",").replace("_", "."))
 
-            st.dataframe(get_view)
+            st.data_editor(
+                data=get_view,
+                use_container_width=True,
+                hide_index=True,
+                column_config={
+                    "mci": st.column_config.NumberColumn("MCI"),
+                    "investidor": st.column_config.TextColumn("Investidor"),
+                    "cpf_cnpj": st.column_config.TextColumn("CPF / CNPJ"),
+                    "tipo_pessoa": st.column_config.TextColumn("Tipo Pessoa"),
+                    "DATA": st.column_config.DateColumn("Data", format="DD/MM/YYYY"),
+                    "direito": st.column_config.TextColumn("Direito"),
+                    "sigla": st.column_config.TextColumn("Sigla"),
+                    "valor": st.column_config.NumberColumn("Valor", format="dollar"),
+                    "valor_ir": st.column_config.NumberColumn("Valor IR", format="dollar"),
+                    "valor_liquido": st.column_config.NumberColumn("Valor Líquido", format="dollar"),
+                },
+            )
+
+            st.button("**Voltar**", key="back_view", type="primary", icon=":material/reply:")
 
         else:
             st.toast(body="**Não há dados para exibir...**", icon=":material/error:")
 
 if st.session_state["csv"]:
     with st.spinner("**:material/hourglass: Preparando os dados para baixar, aguarde...**", show_time=True):
-        get_csv = load_report(mci, st.session_state["ano"], st.session_state["mês"])
+        get_report: pd.DataFrame = load_report(mci, st.session_state["ano"], st.session_state["mês"])
 
-        if not get_csv.empty:
-            sigla = load_data(mci)["sigla"].iloc[0]
-            get_csv.write_csv(file=f"static/escriturais/@deletar/{sigla}-{st.session_state['mês']}-"
-                                   f"{st.session_state['ano']}-Rendimentos Pagos.csv", index=False)
+        if not get_report.empty:
+            sigla: str = load_data(mci)["sigla"].iloc[0]
 
-            st.toast(body="**Arquivo CSV pronto para baixar**", icon=":material/check_circle:")
+            st.toast("**Arquivo CSV pronto para baixar**", icon=":material/check_circle:")
 
             st.download_button(
-                label="Baixar CSV",
-                data=get_csv.to_csv(index=False).encode("utf-8"),
+                label="**Baixar CSV**",
+                data=get_report.to_csv(index=False).encode("utf-8"),
                 file_name=f"{sigla}-{st.session_state['mês']}-{st.session_state['ano']}-Rendimentos Pagos.csv",
-                mimetype="text/csv",
+                mime="text/csv",
                 key="download_csv",
                 type="primary",
                 icon=":material/download:"
@@ -170,58 +184,51 @@ if st.session_state["csv"]:
             st.toast(body="**Não há dados para baixar...**", icon=":material/error:")
 
 if st.session_state["xlsx"]:
-    with st.spinner("**:material/hourglass: Preparando os dados para baixar, aguarde...**", show_time=True):
-        get_xlsx = load_report(mci, st.session_state["ano"], st.session_state["mês"])
+    with st.spinner("**:material/hourglass: Preparando os dados para baixar...**", show_time=True):
+        get_report: pd.DataFrame = load_report(mci, st.session_state["ano"], st.session_state["mês"])
 
-        if not get_xlsx.empty:
-            sigla = load_data(mci)["sigla"].iloc[0]
+        if not get_report.empty:
+            sigla: str = load_data(mci)["sigla"].iloc[0]
 
-            path_xlsx_1: io.BytesIO = io.BytesIO()
-            path_xlsx_2: io.BytesIO = io.BytesIO()
-            path_xlsx_3: io.BytesIO = io.BytesIO()
+            path_xls: io.BytesIO = io.BytesIO()
 
-            xlsx_files: dict[io.BytesIO, str] = {
-                path_xlsx_1: get_xlsx[:int(1e6)].to_excel(
-                    excel_writer=f"{sigla}-{st.session_state['mês']}-{st.session_state['ano']}-"
-                                 f"Rendimentos Pagos-parte1.xlsx",
-                    index=False,
-                    engine="xlsxwriter"
-                ),
-                path_xlsx_2: get_xlsx[int(1e6):int(2e6)].to_excel(
-                    excel_writer=f"{sigla}-{st.session_state['mês']}-{st.session_state['ano']}-"
-                                 f"Rendimentos Pagos-parte2.xlsx",
-                    index=False,
-                    engine="xlsxwriter"
-                ),
-                path_xlsx_3: get_xlsx[int(2e6):].to_excel(
-                    excel_writer=f"{sigla}-{st.session_state['mês']}-{st.session_state['ano']}-"
-                                 f"Rendimentos Pagos-parte3.xlsx",
-                    index=False,
-                    engine="xlsxwriter"
-                ),
-            }
+            with pd.ExcelWriter(path_xls, engine="xlsxwriter") as writer:
+                if len(get_report) <= int(1e6):
+                    get_report[:int(1e6)].to_excel(writer, sheet_name="1", index=False)
 
-            zip_buffer = io.BytesIO()
+                elif len(get_report) <= int(2e6):
+                    get_report[:int(1e6)].to_excel(writer, sheet_name="1", index=False)
+                    get_report[int(1e6):].to_excel(writer, sheet_name="2", index=False)
 
-            with zipfile.ZipFile(file=zip_buffer, mode="w", compression=zipfile.ZIP_DEFLATED) as zip_file:
-                for filename, xlsx_data in xlsx_files.items():
-                    zip_file.writestr(filename, xlsx_data)
+                elif len(get_report) <= int(3e6):
+                    get_report[:int(1e6)].to_excel(writer, sheet_name="1", index=False)
+                    get_report[int(1e6):int(2e6)].to_excel(writer, sheet_name="2", index=False)
+                    get_report[int(2e6):].to_excel(writer, sheet_name="3", index=False)
 
-            zip_buffer.seek(0)
+                elif len(get_report) <= int(4e6):
+                    get_report[:int(1e6)].to_excel(writer, sheet_name="1", index=False)
+                    get_report[int(1e6):int(2e6)].to_excel(writer, sheet_name="2", index=False)
+                    get_report[int(2e6):int(3e6)].to_excel(writer, sheet_name="3", index=False)
+                    get_report[int(3e6):].to_excel(writer, sheet_name="4", index=False)
 
-            st.toast(body="**Arquivo ZIP pronto para baixar**", icon=":material/check_circle:")
+                else:
+                    get_report[:int(1e6)].to_excel(writer, sheet_name="1", index=False)
+                    get_report[int(1e6):int(2e6)].to_excel(writer, sheet_name="2", index=False)
+                    get_report[int(2e6):int(3e6)].to_excel(writer, sheet_name="3", index=False)
+                    get_report[int(3e6):int(4e6)].to_excel(writer, sheet_name="4", index=False)
+                    get_report[int(4e6):].to_excel(writer, sheet_name="5", index=False)
+
+            st.toast(body="**Arquivo XLSX pronto para baixar**", icon=":material/check_circle:")
 
             st.download_button(
-                label="**Baixar ZIP**",
-                data=zip_buffer,
-                file_name="arquivos_xlsx.zip",
-                mime="application/zip",
+                label="**Baixar XLSX**",
+                data=path_xls.getvalue(),
+                file_name=f"{sigla}-{st.session_state['mês']}-{st.session_state['ano']}-Rendimentos Pagos.xlsx",
+                mime="application/vnd.ms-excel",
                 key="download_xlsx",
                 type="primary",
                 icon=":material/download:",
             )
-
-            st.toast(body="**Arquivo ZIP pronto para baixar**", icon=":material/check_circle:")
 
         else:
             st.toast(body="**Não há dados para baixar...**", icon=":material/error:")

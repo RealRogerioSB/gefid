@@ -4,25 +4,23 @@ from datetime import date
 import pandas as pd
 import streamlit as st
 from streamlit.connections import SQLConnection
+from streamlit.elements.lib.column_types import ColumnConfig
 from unidecode import unidecode
 
-st.cache_data.clear()
-
-engine = st.connection(name="DB2", type=SQLConnection)
+engine: SQLConnection = st.connection(name="DB2", type=SQLConnection)
 
 st.subheader(f":material/ad: Informe de Rendimentos - {date.today().year}")
 
-params_columns = dict(
-    mci_investidor=st.column_config.Column(label="MCI", disabled=True),
-    investidor=st.column_config.Column(label="Investidor", disabled=True),
-    status=st.column_config.Column(label="Status", disabled=True),
+params_columns: dict[str, ColumnConfig] = dict(
+    mci_investidor=st.column_config.NumberColumn(label="MCI"),
+    investidor=st.column_config.TextColumn(label="Investidor"),
+    status=st.column_config.TextColumn(label="Status", disabled=True),
     log=st.column_config.DatetimeColumn(label="Log", disabled=True, format="DD/MM/YYYY HH:MM:SS"),
-    cpf_cnpj=st.column_config.Column(label="CPF / CNPJ", disabled=True),
-    email=st.column_config.Column(label="E-mail", disabled=True),
+    cpf_cnpj=st.column_config.TextColumn(label="CPF/CNPJ", disabled=True),
+    email=st.column_config.TextColumn(label="E-mail", disabled=True),
 )
 
 
-@st.cache_data(show_spinner=False)
 def get_join_email(key: str, value: int | str) -> pd.DataFrame:
     return engine.query(
         sql=f"""
@@ -50,7 +48,6 @@ def get_join_email(key: str, value: int | str) -> pd.DataFrame:
     )
 
 
-@st.cache_data(show_spinner=False)
 def get_email(key: str, value: int | str) -> pd.DataFrame:
     return engine.query(
         sql=f"""
@@ -73,7 +70,6 @@ def get_email(key: str, value: int | str) -> pd.DataFrame:
     )
 
 
-@st.cache_data(show_spinner=False)
 def get_bb(key: str, value: int | str) -> pd.DataFrame:
     return engine.query(
         sql=f"SELECT * FROM DB2I13E5.IR2025_CADASTRO_BB WHERE {key.upper()} = :value",
@@ -83,7 +79,6 @@ def get_bb(key: str, value: int | str) -> pd.DataFrame:
     )
 
 
-@st.cache_data(show_spinner=False)
 def get_b3(key: str, value: int | str) -> pd.DataFrame:
     return engine.query(
         sql=f"SELECT * FROM DB2I13E5.IR2025_CADASTRO_B3 WHERE {key.upper()} = :value",
@@ -99,23 +94,23 @@ def report(mail: pd.DataFrame, bb: pd.DataFrame, b3: pd.DataFrame) -> None:
         st.markdown("###### Dados do envio:")
 
         if len(mail) > 0:
-            st.dataframe(data=mail, hide_index=True, column_config=params_columns)
+            st.dataframe(data=mail, hide_index=True, use_container_width=True, column_config=params_columns)
         else:
             st.write("Não localizamos email enviados.")
 
         st.markdown("###### Dados do MCI:")
         if len(bb) > 0:
-            st.dataframe(data=bb, hide_index=True, column_config=params_columns)
+            st.dataframe(data=bb, hide_index=True, use_container_width=True, column_config=params_columns)
         else:
             st.write("Não localizamos dados no recorte da tabela MCI.")
 
         st.markdown("###### Dados do B3:")
         if len(b3) > 0:
-            st.dataframe(data=b3, hide_index=True, column_config=params_columns)
+            st.dataframe(data=b3, hide_index=True, use_container_width=True, column_config=params_columns)
         else:
             st.write("Não localizamos dados na tabela de cadastro da B3.")
 
-        st.button("**Voltar**", key="btn_back", type="primary")
+        st.button("**Voltar**", key="btn_back", type="primary", icon=":material/reply:")
 
 
 with st.container():
@@ -131,8 +126,7 @@ with st.container():
             with st.spinner(text=":material/hourglass: Obtendo os dados, aguarde...", show_time=True):
                 if not any([st.session_state["tx_nome"], st.session_state["tx_mci"], st.session_state["tx_cpf_cnpj"],
                             st.session_state["tx_email"]]):
-                    st.toast("**Precisa digitar qualquer um campo para pesquisar, pelo menos...**",
-                             icon=":material/warning:")
+                    st.toast("**Precisa digitar qualquer um campo para pesquisar**", icon=":material/warning:")
 
                 elif st.session_state["tx_nome"] != "":
                     report(

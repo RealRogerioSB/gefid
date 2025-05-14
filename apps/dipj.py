@@ -5,9 +5,7 @@ import streamlit as st
 import xlsxwriter
 from streamlit.connections import SQLConnection
 
-st.cache_data.clear()
-
-engine = st.connection("DB2", type=SQLConnection)
+engine: SQLConnection = st.connection("DB2", type=SQLConnection)
 
 st.subheader(":material/dynamic_form: DIPJ")
 
@@ -16,36 +14,40 @@ st.columns(2)[0].markdown("##### Devem ser colocados 12 arquivos 064B da mesma e
                           "a mesma extensão de outra empresa ou ano")
 
 
-@st.cache_data(show_spinner=":material/hourglass: Preparando a listagem da empresa, aguarde...")
+@st.cache_data(show_spinner="**:material/hourglass: Preparando a listagem da empresa, aguarde...**")
 def load_active(active: str) -> dict[int, str]:
-    df1 = engine.query(
+    load: pd.DataFrame = engine.query(
         sql=f"""
             SELECT
                 t1.CD_CLI_EMT AS MCI,
-                t2.NOM
+                STRIP(t2.NOM) AS NOM
             FROM
                 DB2AEB.PRM_EMP AS t1
                 INNER JOIN DB2MCI.CLIENTE AS t2
                     ON t2.COD = t1.CD_CLI_EMT
             WHERE
                 t1.DT_ECR_CTR IS {active.upper()}
+            ORDER BY
+                STRIP(t2.NOM)
         """,
         show_spinner=False,
         ttl=0,
     )
-    return {k: v for k, v in zip(df1["mci"].to_list(), df1["nom"].to_list())}
+    return {k: v for k, v in zip(load["mci"].to_list(), load["nom"].to_list())}
 
 
-@st.cache_data(show_spinner=False)
-def load_report(_mci: int) -> tuple[int, str, str, int]:
-    df2 = engine.query(
+def load_report(_mci: int) -> tuple[str, ...]:
+    load: pd.DataFrame = engine.query(
         sql="""
             SELECT
-                t1.CD_CLI_EMT AS MCI_EMPRESA,
-                STRIP(t1.SG_EMP) AS SIGLA,
+                t1.CD_CLI_EMT AS MCI,
                 STRIP(t2.NOM) AS EMPRESA,
-                t2.COD_CPF_CGC AS CNPJ
-            FROM
+                CASE
+                    WHEN t2.COD_TIPO = 2 THEN LPAD(t2.COD_CPF_CGC, 14, '0')
+                    ELSE LPAD(t2.COD_CPF_CGC, 11, '0')
+                END AS CNPJ,
+                STRIP(t1.SG_EMP) AS SIGLA
+                FROM
                 DB2AEB.PRM_EMP t1
                     INNER JOIN DB2MCI.CLIENTE t2
                         ON t2.COD = t1.CD_CLI_EMT
@@ -57,27 +59,26 @@ def load_report(_mci: int) -> tuple[int, str, str, int]:
         params=dict(mci=_mci),
     )
 
-    return df2["mci_empresa"].iloc[0], df2["sigla"].iloc[0], df2["empresa"].iloc[0], df2["cnpj"].iloc[0]
+    return str(load["mci"].iloc[0]), load["empresa"].iloc[0], load["cnpj"].iloc[0], load["sigla"].iloc[0]
 
 
-col1, col2 = st.columns(2)
+col1 = st.columns(2)[0]
 col1.radio(label="**Situação de Clientes:**", options=["ativos", "inativos"], key="option_active")
 
-kv = load_active("null") if st.session_state["option_active"] == "ativos" else load_active("not null")
+kv: dict[int, str] = load_active("null") if st.session_state["option_active"] == "ativos" else load_active("not null")
 
 col1.selectbox(
     label="**Clientes ativos:**" if st.session_state["option_active"] == "ativos" else "**Clientes inativos:**",
-    options=sorted(kv.values()),
+    options=kv.values(),
     key="empresa"
 )
 
-mci = next((chave for chave, valor in kv.items() if valor == st.session_state["empresa"]), 0)
+mci: int = next((chave for chave, valor in kv.items() if valor == st.session_state["empresa"]), 0)
 
-if st.button("**Gerar DIPJ**", type="primary"):
-    with st.spinner(":material/hourglass: Verificando os dados, aguarde...", show_time=True):
-        mci_emissor, cod_aeb, nome_emissor, cnpj_emissor = load_report(mci)
+if st.button("**Gerar DIPJ**", type="primary", icon=":material/save:"):
+    with st.spinner("**:material/hourglass: Verificando os dados, aguarde...**", show_time=True):
+        mci_emissor, nome_emissor, cnpj_emissor, cod_aeb = load_report(mci)
 
-        # diretórios
         diretorio_origem: str = "static/escriturais/@deletar"
         diretorio_destino: str = "static/escriturais/@deletar"
 
@@ -90,12 +91,11 @@ if st.button("**Gerar DIPJ**", type="primary"):
                      icon=":material/warning:")
             st.stop()
 
-        elif len(all_files) > 12:
+        if len(all_files) > 12:
             st.toast("**Tem mais de 12 arquivos de rendimentos pagos no diretório.Favor corrigir e reiniciar**",
                      icon=":material/warning:")
             st.stop()
 
-        # criando a lista
         li = []
 
         # criando dict para modelar o dataframe com os 12 meses
@@ -113,10 +113,8 @@ if st.button("**Gerar DIPJ**", type="primary"):
             "Vlr Líquido": [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
         }
 
-        # adicionando o modelo na lista
         li.append(pd.DataFrame.from_dict(mod))
 
-        # iterando a leitura do Pandas em todos os arquivos da pasta
         for filename in all_files:
             df: pd.DataFrame = pd.read_fwf(
                 filepath_or_buffer=filename,
@@ -128,30 +126,26 @@ if st.button("**Gerar DIPJ**", type="primary"):
             )
 
             # guardando a informação do ano do último arquivo lido
-            ano = str(df.iat[0, 0])
+            ano: str = str(df.iat[0, 0])
             dfs = df[pd.isnull(df["Controle"]) & df["Mês Ref"].ne(99) & df["MCI Emissor"].eq(mci_emissor)]
 
-            # adicionando no final da lista
             li.append(dfs)
 
-        # concatenando o li
         dfs = pd.concat(li, axis=0, ignore_index=True, verify_integrity=True)
 
-        # Verificando se todos os arquivos sÃ£o do mesmo ano e guardando o ano caso
+        # Verificando se todos os arquivos são do mesmo ano e guardando o ano caso
         if len(dfs["Ano Ref"].unique()) == 1:
             st.toast("**Não achamos ninguém**", icon=":material/warning:")
             st.stop()
 
         # Verificando se todos os arquivos são do mesmo ano e guardando o ano caso
         if len(dfs["Ano Ref"].unique()) > 2:
-            # eliminando a primeira linha que foi criada só para gerar o modelo com os 12 meses
             dfs.drop(labels=[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11], axis=0, inplace=True)
 
             st.toast(f"**Identificamos arquivos de anos diferentes {dfs['Ano Ref'].unique()}.\nTodos os arquivos "
                      f"precisam ser do mesmo ano.\nIremos encerrar o processo.**", icon=":material/warning:")
             st.stop()
 
-        # pivotando o dfs
         table = pd.pivot_table(dfs, values=["Vlr Bruto", "Vlr IR", "Vlr Líquido"],
                                index=["País", "Tipo Pessoa", "Tipo Direito"],
                                columns=["Mês Ref"], sort=False)
@@ -409,3 +403,5 @@ if st.button("**Gerar DIPJ**", type="primary"):
         ws.freeze_panes(4, 0)
 
         workbook.close()
+
+        st.toast("**Feito! O arquivo já está na pasta específica**", icon=":material/check_circle:")

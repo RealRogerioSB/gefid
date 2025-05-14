@@ -5,9 +5,7 @@ import streamlit as st
 import xlsxwriter
 from streamlit.connections import SQLConnection
 
-st.cache_data.clear()
-
-engine = st.connection(name="DB2", type=SQLConnection)
+engine: SQLConnection = st.connection(name="DB2", type=SQLConnection)
 
 st.subheader(":material/cycle: Circular BACEN 3624")
 
@@ -15,7 +13,6 @@ st.columns([3, 1])[0].markdown("#### Envio de arquivo à COGER, com a informaç�
                                "do Banco do Brasil, para atender Carta Circular 3624 do Banco Central")
 
 
-@st.cache_data(show_spinner=False)
 def load_data(year: int, month: int) -> pd.DataFrame:
     return engine.query(
         sql="""
@@ -46,13 +43,13 @@ def load_data(year: int, month: int) -> pd.DataFrame:
 
 
 def preparo_xlsx(year: int, month: int) -> None:
-    xlsx = load_data(year, month)
+    xlsx: pd.DataFrame = load_data(year, month)
 
     if xlsx.empty:
-        st.toast(body="**Não há dados para enviar**", icon=":material/warning:")
+        st.toast(body="**Não há dados para enviar**", icon=":material/error:")
         st.stop()
 
-    with st.spinner(":material/hourglass: Obtendo os dados, aguarde...", show_time=True):
+    with st.spinner("**:material/hourglass: Obtendo os dados, aguarde...**", show_time=True):
         with xlsxwriter.Workbook(f"static/escriturais/@deletar/circular3624-{year}-{month}.xlsx") as wb:
             ws = wb.add_worksheet(f"{year}{month:02d}")
 

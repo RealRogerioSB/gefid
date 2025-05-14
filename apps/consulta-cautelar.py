@@ -3,8 +3,6 @@ import streamlit as st
 from streamlit.connections import SQLConnection
 from unidecode import unidecode
 
-st.cache_data.clear()
-
 engine: SQLConnection = st.connection(name="DB2", type=SQLConnection)
 
 st.subheader(":material/autorenew: Consulta Cautelar (ABB/BBA)")
@@ -12,7 +10,6 @@ st.subheader(":material/autorenew: Consulta Cautelar (ABB/BBA)")
 st.markdown("**Consulta aos Sistemas Antigos ABB e BBA**")
 
 
-@st.cache_data(show_spinner=False)
 def load_acionista(key: str, value: int | str) -> pd.DataFrame:
     return engine.query(
         sql=f"SELECT * FROM DB2I13E5.SISTEMA_ANTIGO_ACIONISTAS WHERE {key.upper()} = :value",
@@ -22,10 +19,11 @@ def load_acionista(key: str, value: int | str) -> pd.DataFrame:
     )
 
 
-@st.cache_data(show_spinner=False)
 def load_certificado(value: tuple) -> pd.DataFrame:
     return engine.query(
-        sql=f"""SELECT DISTINCT INSCRICAO, NUMERO_CERT, NR_PRIM_ACAO, DATA_EMIS, QT_ACOES
+        sql=f"""SELECT DISTINCT
+                    INSCRICAO,
+                    NUMERO_CERT, NR_PRIM_ACAO, DATA_EMIS, QT_ACOES
                 FROM DB2I13E5.SISTEMA_ANTIGO_CERTIFICADOS
                 WHERE INSCRICAO IN {value}""",
         show_spinner=False,
@@ -33,52 +31,111 @@ def load_certificado(value: tuple) -> pd.DataFrame:
     )
 
 
-st.columns(5)[0].number_input("**Inscrição:**", key="inscricao", min_value=0, max_value=9999999999)
-st.columns(2)[0].text_input("**Nome do Investidor:**", key="nome_investidor")
+st.columns(5)[0].text_input("**Inscrição:**", key="inscrição", max_chars=10)
+st.columns(2)[0].text_input("**Nome do Investidor:**", key="nome_on", max_chars=60)
 
 col1, col2, _ = st.columns([1, 1.2, 4])
-col1.number_input("**MCI:**", key="mci_investidor", min_value=0, max_value=9999999999)
-col2.number_input("**CPF/CNPJ:**", key="cpf_cnpj_investidor", min_value=0, max_value=99999999999999)
+col1.text_input("**MCI:**", key="bdc", max_chars=10)
+col2.text_input("**CPF/CNPJ:**", key="cpf_cnpj", max_chars=14)
 
 st.button("**Pesquisar**", key="search", type="primary", icon=":material/search:")
 
 if st.session_state["search"]:
-    if not any([st.session_state["inscricao"], st.session_state["nome_investidor"],
-                st.session_state["mci_investidor"], st.session_state["cpf_cnpj_investidor"]]):
-        st.toast("###### É necessário preencher um campo abaixo", icon=":material/warning:")
+    if all([st.session_state["inscrição"], st.session_state["nome_on"],
+            st.session_state["bdc"], st.session_state["cpf_cnpj"]]):
+        st.toast("**Só pode preencher um dos campos abaixo**", icon=":material/warning:")
         st.stop()
 
-    if all([st.session_state["inscricao"], st.session_state["nome_investidor"],
-            st.session_state["mci_investidor"], st.session_state["cpf_cnpj_investidor"]]):
-        st.toast("###### Só pode preencher um dos campos abaixo", icon=":material/warning:")
+    if not any([st.session_state["inscrição"], st.session_state["nome_on"],
+                st.session_state["bdc"], st.session_state["cpf_cnpj"]]):
+        st.toast("**É necessário preencher um campo abaixo**", icon=":material/warning:")
+        st.stop()
+
+    if not st.session_state["inscrição"].isdigit() and st.session_state["inscrição"]:
+        st.toast("**O campo 'Inscrição' tem de ser numérico**", icon=":material/warning:")
+        st.stop()
+
+    elif not st.session_state["bdc"].isdigit() and st.session_state["bdc"]:
+        st.toast("**O campo 'MCI' tem de ser numérico**", icon=":material/warning:")
+        st.stop()
+
+    elif not st.session_state["cpf_cnpj"].isdigit() and st.session_state["cpf_cnpj"]:
+        st.toast("**O campo 'CPF/CNPJ' tem de ser numérico**", icon=":material/warning:")
         st.stop()
 
     with st.spinner("**:material/hourglass: Preparando para exportar os dados, aguarde...**", show_time=True):
         acionistas: pd.DataFrame = load_acionista(
-            key="inscricao" if st.session_state["inscricao"]
-            else "nome_on" if st.session_state["nome_investidor"]
-            else "bdc" if st.session_state["mci_investidor"]
+            key="inscricao" if st.session_state["inscrição"]
+            else "nome_on" if st.session_state["nome_on"]
+            else "bdc" if st.session_state["bdc"]
             else "cpf_cnpj",
-            value=st.session_state["inscricao"] if st.session_state["inscricao"]
-            else unidecode(st.session_state["nome_investidor"]).upper() if st.session_state["nome_investidor"]
-            else st.session_state["mci_investidor"] if st.session_state["mci_investidor"]
-            else st.session_state["cpf_cnpj_investidor"],
+            value=st.session_state["inscrição"] if st.session_state["inscrição"]
+            else unidecode(st.session_state["nome_on"]).upper() if st.session_state["nome_on"]
+            else st.session_state["bdc"] if st.session_state["bdc"]
+            else st.session_state["cpf_cnpj"],
         )
 
-        if not acionistas.empty:
-            inscricoes: tuple = tuple(acionistas["inscricao"].astype("int64").drop_duplicates().to_list())
+        if acionistas.empty:
+            st.toast("**Não foram encontrados dados para a pesquisa realizada**", icon=":material/error:")
+            st.stop()
 
-            certificados: pd.DataFrame = load_certificado(value=inscricoes)
+        inscricoes: tuple = tuple(acionistas["inscricao"].astype("int64").drop_duplicates().to_list())
 
-            if not certificados.empty:
-                certificados.to_excel(
-                    excel_writer=f"static/escriturais/@deletar/sistemas_antigos_{st.session_state['inscricao']}.xlsx",
-                    index=False
-                )
-                st.toast("###### Gerada com sucesso a planilha para a pasta específica", icon=":material/check_circle:")
+        certificados: pd.DataFrame = load_certificado(value=inscricoes)
 
-            else:
-                st.toast("###### Não foram encontrados dados para a pesquisa realizada", icon=":material/error:")
+        if not certificados.empty:
+            st.toast("**Não foram encontrados dados para a pesquisa realizada**", icon=":material/error:")
+            st.stop()
 
-        else:
-            st.toast("###### Não foram encontrados dados para a pesquisa realizada", icon=":material/error:")
+        st.divider()
+
+        st.columns([3, 1])[0].data_editor(
+            data=acionistas,
+            hide_index=True,
+            use_container_width=True,
+            column_config={
+                "cpf_cnpj": st.column_config.NumberColumn("CPF / CNPJ"),
+                "data_de_nascimento": st.column_config.DateColumn("Nascimento", format="DD/MM/YYYY"),
+                "bdc": st.column_config.NumberColumn("MCI"),
+                "inscricao": st.column_config.NumberColumn("Inscrição"),
+                "ag": st.column_config.NumberColumn("Agência"),
+                "cta": st.column_config.NumberColumn("Contestação"),
+                "dt_cadastr": st.column_config.DateColumn("Data de Cadastro", format="DD/MM/YYYY"),
+                "cep": st.column_config.NumberColumn("CEP"),
+                "nome_on": st.column_config.TextColumn("Nome ON", width="large"),
+                "nome_pn": st.column_config.TextColumn("Nome PN", width="large"),
+                "endereco": st.column_config.TextColumn("Endereço", width="large"),
+                "cidade": st.column_config.TextColumn("Cidade"),
+                "uf": st.column_config.TextColumn("Estado"),
+            },
+        )
+
+        st.columns(2)[0].data_editor(
+            data=certificados,
+            hide_index=True,
+            use_container_width=True,
+            column_config={
+                "inscricao": st.column_config.NumberColumn("INSCRIÇÃO"),
+                "numero_cert": st.column_config.NumberColumn("NUMERO CERT"),
+                "nr_prim_acao": st.column_config.NumberColumn("NR PRIM AÇÃO"),
+                "data_emis": st.column_config.NumberColumn("DATA EMIS"),
+                "qt_acoes": st.column_config.NumberColumn("QT AÇÕES"),
+            },
+        )
+
+        st.download_button(
+            label="**Baixar CSV**",
+            data=certificados.to_csv(sep=";", index=False).encode("utf-8"),
+            file_name=f"sistemas_antigos_{st.session_state['inscrição']}.csv",
+            mime="text/csv",
+            type="primary",
+            icon=":material/download:",
+        )
+
+        certificados.to_csv(
+            path_or_buf=f"static/escriturais/@deletar/sistemas_antigos_{st.session_state['inscrição']}.csv",
+            sep=";",
+            index=False,
+        )
+
+        st.toast("**Gerada com sucesso a planilha para a pasta específica**", icon=":material/check_circle:")

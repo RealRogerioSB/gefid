@@ -17,8 +17,6 @@ from streamlit.connections import SQLConnection
 
 locale.setlocale(locale.LC_ALL, "pt_BR.UTF-8")
 
-st.cache_data.clear()
-
 if "state_selectbox" not in st.session_state:
     st.session_state["state_selectbox"] = True
 
@@ -32,12 +30,12 @@ engine: SQLConnection = st.connection(name="DB2", type=SQLConnection)
 st.markdown("##### :material/bar_chart_4_bars: Declaração de Ações em Tesouraria")
 
 with open("static/arquivos/protocolador/protocolador.txt") as f:
-    ultimo_protocolo = int([x.strip().split("-") for x in f.readlines()][-1][1]) + 1
+    last_protocol: int = int([x.strip().split("-") for x in f.readlines()][-1][1]) + 1
 
-st.markdown(f"Protocolo: **{date.today().year}** / DIEST: **{ultimo_protocolo}**")
+st.markdown(f"Protocolo: **{date.today().year}** / DIEST: **{last_protocol}**")
 
 
-@st.cache_data(show_spinner=False)
+@st.cache_data(show_spinner="**:material/hourglass: Preparando a listagem da empresa, aguarde...**")
 def load_client() -> dict[int, str]:
     load: pd.DataFrame = engine.query(
         sql="""
@@ -46,13 +44,12 @@ def load_client() -> dict[int, str]:
         WHERE t1.DT_ECR_CTR IS NULL
         ORDER BY STRIP(t2.NOM)
         """,
-        show_spinner="**:material/hourglass: Preparando a listagem da empresa, aguarde...**",
+        show_spinner=False,
         ttl=0
     )
     return {k: v for k, v in zip(load["mci"].to_list(), load["nom"].to_list())}
 
 
-@st.cache_data(show_spinner=False)
 def load_empresa(_mci: int, _data_ant: date, _data_atual: date) -> pd.DataFrame:
     return engine.query(
         sql="""
@@ -173,7 +170,7 @@ if st.session_state["montar"]:
             )
             cnv.drawImage("static/imagens/bb.jpg", 40, 780, 300, 38)
             cnv.setFont("Vera", 11)
-            cnv.drawString(330, 750, f"Diretoria Operações - {date.today().year}/DIEST-{ultimo_protocolo}")
+            cnv.drawString(330, 750, f"Diretoria Operações - {date.today().year}/DIEST-{last_protocol}")
             cnv.drawString(330, 730, f"Rio de Janeiro, {date.today():%d de %B de %Y}")
             cnv.drawString(40, 680, "Prezados Senhores,")
             cnv.drawString(40, 650, f"O Banco Brasil S.A., Instituição Depositária de Ações Escriturais "
@@ -185,7 +182,7 @@ if st.session_state["montar"]:
             cnv.drawString(40, 605, f"quantidade de ativos na tesouraria no ambiente escritural (Livro) "
                                     f"em {st.session_state['data']:%d/%m/%Y}.")
 
-            cnpj: int = office["cpf_cnpj"].iloc[0]
+            cnpj: str = office["cpf_cnpj"].iloc[0]
 
             cnv.drawString(40, 575, f"Razão Social: {st.session_state['empresa']}")
             cnv.drawString(40, 560, f"CNPJ: {cnpj}")
@@ -216,7 +213,7 @@ if st.session_state["montar"]:
             st.rerun()
 
         else:
-            st.toast("**Não identificamos ações em tesouraria para o referido cliente**", icon=":material/warning:")
+            st.toast("**Não identificamos ações em tesouraria para o referido cliente**", icon=":material/error:")
 
 if st.session_state["enviar"]:
     if not any([st.session_state["to_addrs"], st.session_state["cc_addrs"]]):
@@ -248,10 +245,8 @@ if st.session_state["enviar"]:
 
         part: MIMEBase = MIMEBase("application", "octet-stream")
 
-        arquivo: str = (f"static/escriturais/@deletar/AcoesEmTesouraria-{st.session_state['empresa']} - "
-                        f"{st.session_state['data']:%d.%m.%Y}.pdf")
-
-        with open(arquivo, "rb") as f:
+        with open(f"static/escriturais/@deletar/AcoesEmTesouraria-{st.session_state['empresa']} - "
+                  f"{st.session_state['data']:%d.%m.%Y}.pdf", "rb") as f:
             payload: bytes = f.read()
 
         part.set_payload(payload)
@@ -276,7 +271,7 @@ if st.session_state["enviar"]:
             else:
                 with open("static/arquivos/protocolador/protocolador.txt", "a") as save_protocol:
                     save_protocol.write("\n")
-                    save_protocol.write(f"{date.today().year}-{ultimo_protocolo}-Protocolo Ações em "
+                    save_protocol.write(f"{date.today().year}-{last_protocol}-Protocolo Ações em "
                                         f"Tesouraria-{st.session_state['empresa']}")
 
                 st.toast("**E-mail enviado com sucesso!**", icon=":material/check_circle:")

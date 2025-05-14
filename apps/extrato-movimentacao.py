@@ -3,8 +3,6 @@ import streamlit as st
 from streamlit.connections import SQLConnection
 from unidecode import unidecode
 
-st.cache_data.clear()
-
 engine: SQLConnection = st.connection(name="DB2", type=SQLConnection)
 
 st.subheader(":material/wysiwyg: Extrato de Movimentação")
@@ -13,11 +11,11 @@ st.markdown("##### Extrato de Movimentação de Ativos dos últimos 12 meses")
 
 stmt_load_nome: str = """
     SELECT
-        t1.CD_TIP_TIT AS tipo,
+        t1.CD_TIP_TIT AS TIPO,
         CAST(t1.DT_MVTC AS DATE) AS DATA,
-        CAST(t1.QT_TIT_MVTD AS INT) AS movimento,
-        CAST(t1.QT_TIT_ATU AS INT) AS saldo,
-        t1.CD_CLI_CSTD AS mci_custodiante
+        CAST(t1.QT_TIT_MVTD AS INT) AS MOVIMENTO,
+        CAST(t1.QT_TIT_ATU AS INT) AS SALDO,
+        t1.CD_CLI_CSTD AS MCI_CUSTODIANTE
     FROM
         DB2AEB.MVTC_DIAR_PSC t1
         LEFT JOIN DB2MCI.CLIENTE AS t2
@@ -30,11 +28,11 @@ stmt_load_nome: str = """
 """
 
 stmt_load_mci: str = """
-    SELECT t1.CD_TIP_TIT AS tipo,
+    SELECT t1.CD_TIP_TIT AS TIPO,
         CAST(t1.DT_MVTC AS DATE) AS DATA,
-        CAST(t1.QT_TIT_MVTD AS INT) AS movimento,
-        CAST(t1.QT_TIT_ATU AS INT) AS saldo,
-        t1.CD_CLI_CSTD AS mci_custodiante
+        CAST(t1.QT_TIT_MVTD AS INT) AS MOVIMENTO,
+        CAST(t1.QT_TIT_ATU AS INT) AS SALDO,
+        t1.CD_CLI_CSTD AS MCI_CUSTODIANTE
     FROM
         DB2AEB.MVTC_DIAR_PSC t1
     WHERE
@@ -46,11 +44,11 @@ stmt_load_mci: str = """
 
 stmt_load_cpf_cgc: str = """
     SELECT
-        t1.CD_TIP_TIT AS tipo,
+        t1.CD_TIP_TIT AS TIPO,
         CAST(t1.DT_MVTC AS DATE) AS DATA,
-        CAST(t1.QT_TIT_MVTD AS INT) AS movimento,
-        CAST(t1.QT_TIT_ATU AS INT) AS saldo,
-        t1.CD_CLI_CSTD AS mci_custodiante
+        CAST(t1.QT_TIT_MVTD AS INT) AS MOVIMENTO,
+        CAST(t1.QT_TIT_ATU AS INT) AS SALDO,
+        t1.CD_CLI_CSTD AS MCI_CUSTODIANTE
     FROM
         DB2AEB.MVTC_DIAR_PSC t1
         INNER JOIN DB2MCI.CLIENTE AS t2
@@ -63,20 +61,19 @@ stmt_load_cpf_cgc: str = """
 """
 
 
-@st.cache_data(show_spinner=False)
+@st.cache_data(show_spinner="**:material/hourglass: Preparando a listagem da empresa, aguarde...**")
 def load_client() -> dict[int, str]:
     load: pd.DataFrame = engine.query(
         sql="""SELECT t1.CD_CLI_EMT AS MCI, STRIP(t2.NOM) AS NOM
                FROM DB2AEB.PRM_EMP t1 INNER JOIN DB2MCI.CLIENTE t2 ON t2.COD = t1.CD_CLI_EMT
                WHERE t1.DT_ECR_CTR IS NULL
                ORDER BY STRIP(t2.NOM)""",
-        show_spinner="**:material/hourglass: Obtendo os dados, aguarde...**",
+        show_spinner=False,
         ttl=0
     )
     return {k: v for k, v in zip(load["mci"].to_list(), load["nom"].to_list())}
 
 
-@st.cache_data(show_spinner=False)
 def load_empresa(key: str, value: int | str) -> pd.DataFrame:
     return engine.query(
         sql=f"""SELECT t1.COD AS mci_empresa,
@@ -93,7 +90,6 @@ def load_empresa(key: str, value: int | str) -> pd.DataFrame:
     )
 
 
-@st.cache_data(show_spinner=False)
 def load_extrato(n_load: int, _mci: int, value: int | str) -> pd.DataFrame:
     return engine.query(
         sql=stmt_load_nome if n_load == 0 else stmt_load_mci if n_load == 1 else stmt_load_cpf_cgc,
@@ -103,7 +99,6 @@ def load_extrato(n_load: int, _mci: int, value: int | str) -> pd.DataFrame:
     )
 
 
-@st.cache_data(show_spinner=False)
 def load_tipo(_tipo: int) -> pd.DataFrame:
     return engine.query(
         sql="SELECT t1.SG_TIP_TIT FROM DB2AEB.TIP_TIT t1 WHERE t1.CD_TIP_TIT = :tipo",
@@ -117,7 +112,7 @@ with st.columns(2)[0]:
     kv: dict[int, str] = load_client()
 
     st.selectbox(label="**Empresa:**", options=kv.values(), key="empresa")
-    unidecode(st.text_input(label="**Nome Investidor:**", max_chars=100, key="nome_investidor")).upper()
+    st.text_input(label="**Nome Investidor:**", max_chars=100, key="nome_investidor")
 
     col = st.columns([1.3, 1.6, 1.4])
 
@@ -139,13 +134,13 @@ if st.session_state["search"]:
         st.stop()
 
     with st.spinner("**:material/hourglass: Preparando os dados para exibir, aguarde...**", show_time=True):
-        empresa: pd.DataFrame = load_empresa("cod", mci)
+        cliente: pd.DataFrame = load_empresa("cod", mci)
 
         investidor: pd.DataFrame = load_empresa(
             key="nom" if st.session_state["nome_investidor"]
             else "cod" if st.session_state["mci_investidor"]
             else "cod_cpf_cgc",
-            value=st.session_state["nome_investidor"] if st.session_state["nome_investidor"]
+            value=unidecode(st.session_state["nome_investidor"]).upper() if st.session_state["nome_investidor"]
             else st.session_state["mci_investidor"] if st.session_state["mci_investidor"]
             else st.session_state["cpf_cnpj_investidor"],
         )
@@ -153,7 +148,7 @@ if st.session_state["search"]:
         extrato: pd.DataFrame = load_extrato(
             n_load=0 if st.session_state["nome_investidor"] else 1 if st.session_state["mci_investidor"] else 2,
             _mci=mci,
-            value=st.session_state["nome_investidor"] if st.session_state["nome_investidor"]
+            value=unidecode(st.session_state["nome_investidor"]).upper() if st.session_state["nome_investidor"]
             else st.session_state["mci_investidor"] if st.session_state["mci_investidor"]
             else st.session_state["cpf_cnpj_investidor"],
         )
@@ -169,7 +164,7 @@ if st.session_state["search"]:
         tipos: list[str] = []
 
         if extrato.empty:
-            st.toast("**Não ocorreram movimentações nos últimos 12 meses**", icon=":material/warning:")
+            st.toast("**Não ocorreram movimentações nos últimos 12 meses**", icon=":material/error:")
             st.stop()
 
         for _extrato in extratos:
@@ -196,7 +191,7 @@ if st.session_state["search"]:
 
         with st.columns(2)[0]:
             st.dataframe(
-                data=empresa,
+                data=cliente,
                 hide_index=True,
                 column_config={
                     "mci_empresa": st.column_config.NumberColumn(label="MCI Empresa"),
@@ -227,4 +222,4 @@ if st.session_state["search"]:
                 },
             )
 
-        st.button("**Voltar**", type="primary")
+        st.button("**Voltar**", type="primary", icon=":material/reply:")

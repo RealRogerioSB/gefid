@@ -4,7 +4,6 @@ from email import encoders
 from email.mime.base import MIMEBase
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
-from pickle import FALSE
 
 import pandas as pd
 import reportlab.rl_config
@@ -18,14 +17,11 @@ from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.platypus import Image, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 from streamlit.connections import SQLConnection
 
-st.cache_data.clear()
+engine: SQLConnection = st.connection(name="DB2", type=SQLConnection)
 
 st.subheader(":material/hide_source: Cancelamento de CEPAC")
 
-engine: SQLConnection = st.connection(name="DB2", type=SQLConnection)
 
-
-@st.cache_data(show_spinner=False)
 def load_extract_mci(mci: int, active: int) -> pd.DataFrame:
     return engine.query(
         sql="""
@@ -45,7 +41,6 @@ def load_extract_mci(mci: int, active: int) -> pd.DataFrame:
     )
 
 
-@st.cache_data(show_spinner=False)
 def load_extract_cnpj(cnpj: int, active: int) -> pd.DataFrame:
     return engine.query(
         sql="""
@@ -67,7 +62,6 @@ def load_extract_cnpj(cnpj: int, active: int) -> pd.DataFrame:
     )
 
 
-@st.cache_data(show_spinner=False)
 def load_cadastro(field: str, value: int) -> pd.DataFrame:
     return engine.query(
         sql=f"""
@@ -87,9 +81,9 @@ def load_cadastro(field: str, value: int) -> pd.DataFrame:
 
 
 with open("static/arquivos/protocolador/protocolador.txt") as f:
-    new_protocol: int = int([x.strip().split("-") for x in f.readlines()][-1][1]) + 1
+    last_protocol: int = int([x.strip().split("-") for x in f.readlines()][-1][1]) + 1
 
-st.markdown(f"Protocolo: **{date.today().year}** / DIEST: **{new_protocol}**")
+st.markdown(f"Protocolo: **{date.today().year}** / DIEST: **{last_protocol}**")
 
 st.markdown("##### Preencher os dados do pedido da Prefeitura de São Paulo")
 
@@ -163,7 +157,7 @@ if st.session_state["montar"]:
         elements: list = [
             Image("static/imagens/bb.jpg", 300, 38),
             Spacer(30, 30),
-            Paragraph(f"Diretoria Operações - {date.today().year}/DIEST-{new_protocol}", header),
+            Paragraph(f"Diretoria Operações - {date.today().year}/DIEST-{last_protocol}", header),
             Paragraph(f"Rio de Janeiro, {date.today():%d/%m/%Y}", header),
             Spacer(30, 30),
             Paragraph("-", content),
@@ -207,7 +201,7 @@ if st.session_state["montar"]:
         elements.append(Paragraph("Ouvidoria BB - 0800 729 5678)", footer))
 
         pdf: SimpleDocTemplate = SimpleDocTemplate(
-            filename=f"static/escriturais/@deletar/{date.today().year}-{new_protocol}-CancelamentoCEPAC-Carta-"
+            filename=f"static/escriturais/@deletar/{date.today().year}-{last_protocol}-CancelamentoCEPAC-Carta-"
                      f"DAF{st.session_state['carta_daf']}.pdf",
             pagesize=A4
         )
@@ -236,7 +230,7 @@ if st.session_state["enviar"]:
     ))
 
     part = MIMEBase("application", "octet-stream")
-    part.set_payload(open(f"static/escriturais/@deletar/{date.today().year}-{new_protocol}-CancelamentoCEPAC-Carta"
+    part.set_payload(open(f"static/escriturais/@deletar/{date.today().year}-{last_protocol}-CancelamentoCEPAC-Carta"
                           f"-DAF{st.session_state['carta_daf']}.pdf", "rb").read())
 
     encoders.encode_base64(part)
@@ -259,7 +253,7 @@ if st.session_state["enviar"]:
         else:
             with open("static/arquivos/protocolador/protocolador.txt", "a") as save_protocol:
                 save_protocol.write("\n")
-                save_protocol.write(f"{date.today().year}-{new_protocol}-CancelamentoCEPAC-Carta-"
+                save_protocol.write(f"{date.today().year}-{last_protocol}-CancelamentoCEPAC-Carta-"
                                     f"DAF{st.session_state['carta_daf']}")
 
             st.toast("**Declaração de Cancelamento de CEPAC gerada com sucesso!**", icon=":material/check_circle:")

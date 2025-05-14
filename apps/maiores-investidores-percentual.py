@@ -19,8 +19,6 @@ from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.platypus import Image, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 from streamlit.connections import SQLConnection
 
-st.cache_data.clear()
-
 if "state_selectbox" not in st.session_state:
     st.session_state["state_selectbox"] = True
 
@@ -34,7 +32,7 @@ engine: SQLConnection = st.connection(name="DB2", type=SQLConnection)
 st.subheader(":material/workspace_premium: Declarações de Maiores Investidores Percentual")
 
 
-@st.cache_data(show_spinner=False)
+@st.cache_data(show_spinner="**:material/hourglass: Preparando a lista da empresa, aguarde...**")
 def load_client() -> dict[int, str]:
     load: pd.DataFrame = engine.query(
         sql="""
@@ -43,13 +41,12 @@ def load_client() -> dict[int, str]:
         WHERE t1.DT_ECR_CTR IS NULL
         ORDER BY STRIP(t2.NOM)
         """,
-        show_spinner="**:material/hourglass: Preparando a lista da empresa, aguarde...**",
+        show_spinner=False,
         ttl=0
     )
     return {k: v for k, v in zip(load["mci"].to_list(), load["nom"].to_list())}
 
 
-@st.cache_data(show_spinner=False)
 def load_empresa(_mci: int, _data_ant: date, _data_atual: date) -> pd.DataFrame:
     return engine.query(
         sql="""
@@ -60,8 +57,16 @@ def load_empresa(_mci: int, _data_ant: date, _data_atual: date) -> pd.DataFrame:
                 ELSE t8.NM_INVR
             END) AS INVESTIDOR,
             CASE
-                WHEN t5.CD_CLI_ACNT < 1000000000 THEN CAST(t6.COD_CPF_CGC AS BIGINT)
-                ELSE CAST(t8.NR_CPF_CNPJ_INVR AS BIGINT)
+                WHEN t5.CD_CLI_ACNT < 1000000000 THEN
+                    CASE
+                        WHEN t6.COD_TIPO = 2 THEN LPAD(CAST(t6.COD_CPF_CGC AS BIGINT), 14, '0')
+                        ELSE LPAD(CAST(t6.COD_CPF_CGC AS BIGINT), 11, '0')
+                    END
+                ELSE
+                    CASE
+                        WHEN t6.COD_TIPO = 2 THEN LPAD(CAST(t8.NR_CPF_CNPJ_INVR AS BIGINT), 14, '0')
+                        ELSE LPAD(CAST(t8.NR_CPF_CNPJ_INVR AS BIGINT), 11, '0')
+                    END
             END AS CPF_CNPJ,
             t5.CD_TIP_TIT AS COD_TITULO,
             CONCAT(STRIP(t7.SG_TIP_TIT), STRIP(t7.CD_CLS_TIP_TIT)) AS SIGLA,
@@ -117,32 +122,33 @@ def load_empresa(_mci: int, _data_ant: date, _data_atual: date) -> pd.DataFrame:
             CAST(t5.CD_CLI_ACNT AS INTEGER),
             DATA DESC
         """,
-        show_spinner="**:material/hourglass: Obtendo os dados, aguarde...**",
+        show_spinner=False,
         ttl=0,
         params=dict(mci=_mci, data_ant=_data_ant, data_atual=_data_atual)
     )
 
 
-@st.cache_data(show_spinner=False)
-def load_cadastro(_mci: int) -> pd.DataFrame:
-    return engine.query(
+def load_cadastro(_mci: int) -> tuple[str, ...]:
+    load: pd.DataFrame = engine.query(
         sql="""
-    SELECT
-        t1.CD_CLI_EMT AS MCI_EMPRESA,
-        STRIP(t1.SG_EMP) AS SIGLA,
-        STRIP(t2.NOM) AS EMPRESA,
-        LPAD(t2.COD_CPF_CGC, 14, '0') AS CNPJ
-    FROM
-        DB2AEB.PRM_EMP t1
-        INNER JOIN DB2MCI.CLIENTE t2
-            ON t2.COD = t1.CD_CLI_EMT
-    WHERE
-        t1.CD_CLI_EMT = :mci
+        SELECT
+            t1.CD_CLI_EMT AS MCI,
+            STRIP(t2.NOM) AS EMPRESA,
+            LPAD(t2.COD_CPF_CGC, 14, '0') AS CNPJ,
+            STRIP(t1.SG_EMP) AS SIGLA
+        FROM
+            DB2AEB.PRM_EMP t1
+            INNER JOIN DB2MCI.CLIENTE t2
+                ON t2.COD = t1.CD_CLI_EMT
+        WHERE
+            t1.CD_CLI_EMT = :mci
         """,
-        show_spinner="**:material/hourglass: Obtendo os dados, aguarde...**",
+        show_spinner=False,
         ttl=0,
         params=dict(mci=_mci)
     )
+
+    return str(load["mci"].iloc[0]), load["empresa"].iloc[0], load["cnpj"].iloc[0], load["sigla"].iloc[0]
 
 
 with open("static/arquivos/protocolador/protocolador.txt") as f:
@@ -172,7 +178,7 @@ with st.columns(2)[0]:
               disabled=st.session_state['state_selectbox'])
 
 if st.session_state["montar"]:
-    with st.spinner("**Preparando a declaração, aguarde...**", show_time=True):
+    with st.spinner("**:material/hourglass: Preparando a declaração, aguarde...**", show_time=True):
         reportlab.rl_config.warnOnMissingFontGlyphs = 0
 
         pdfmetrics.registerFont(TTFont("Vera", "Vera.ttf"))
@@ -206,7 +212,7 @@ if st.session_state["montar"]:
 
         base = base.sort_values(["QTD"], ascending=False)
         base = base[base["%"].ge(st.session_state["percentual"])]
-        base.reset_index(inplace=True)
+        # base.reset_index(inplace=True)
 
         # definindo estilos que serão usados na carta
         header: ParagraphStyle = ParagraphStyle("header", fontName="Vera", fontSize=11, textColor=colors.black,
@@ -217,9 +223,9 @@ if st.session_state["montar"]:
 
         cadastro = load_cadastro(mci)
 
-        mci_empresa: int = int(cadastro.mci_empresa.iloc[0])
-        nome_empresa: str = cadastro.empresa.iloc[0]
-        cnpj_empresa: str = cadastro.cnpj.iloc[0]
+        mci_empresa: str = cadastro[0]
+        nome_empresa: str = cadastro[1]
+        cnpj_empresa: str = cadastro[2]
 
         elements = [
             Image(filename="static/imagens/bb.jpg", width=300, height=38),
@@ -268,9 +274,10 @@ if st.session_state["montar"]:
         elements.append(Paragraph("Telefone: (21) 3808-3715", footer))
         elements.append(Paragraph("Ouvidoria BB - 0800 729 5678", footer))
 
-        arquivo = f"static/escriturais/@deletar/{date.today().year}-{last_protocol}-MaioresAcionistas.pdf"
-
-        pdf: SimpleDocTemplate = SimpleDocTemplate(arquivo, pagesize=A4)
+        pdf: SimpleDocTemplate = SimpleDocTemplate(
+            f"static/escriturais/@deletar/{date.today().year}-{last_protocol}-MaioresAcionistas.pdf",
+            pagesize=A4
+        )
         pdf.build(elements)
 
         st.toast("**Declaração gerada com sucesso!**", icon=":material/check_circle:")
@@ -286,7 +293,7 @@ if st.session_state["send_email"]:
             st.toast("**Deve preencher pelo menos e-mails de destinatário**", icon=":material/warning:")
             st.stop()
 
-        msg = MIMEMultipart()
+        msg: MIMEMultipart = MIMEMultipart()
         msg["Subject"] = "DECLARAÇÃO DE MAIORES INVESTIDORES"
         msg["From"] = st.session_state["from_addr"]
         msg["To"] = ", ".join(st.session_state["to_addrs"])
@@ -302,12 +309,10 @@ if st.session_state["send_email"]:
             "html"
         ))
 
-        part = MIMEBase("application", "octet-stream")
+        part: MIMEBase = MIMEBase("application", "octet-stream")
 
-        arquivo = f"static/escriturais/@deletar/{date.today().year}-{last_protocol}-MaioresAcionistas.pdf"
-
-        with open(arquivo, "rb") as f:
-            payload = f.read()
+        with open(f"static/escriturais/@deletar/{date.today().year}-{last_protocol}-MaioresAcionistas.pdf", "rb") as f:
+            payload: bytes = f.read()
 
         part.set_payload(payload)
 
