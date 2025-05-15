@@ -62,28 +62,35 @@ stmt_load_cpf_cgc: str = """
 
 
 @st.cache_data(show_spinner="**:material/hourglass: Preparando a listagem da empresa, aguarde...**")
-def load_client() -> dict[int, str]:
+def load_client() -> dict[str, int]:
     load: pd.DataFrame = engine.query(
-        sql="""SELECT t1.CD_CLI_EMT AS MCI, STRIP(t2.NOM) AS NOM
-               FROM DB2AEB.PRM_EMP t1 INNER JOIN DB2MCI.CLIENTE t2 ON t2.COD = t1.CD_CLI_EMT
-               WHERE t1.DT_ECR_CTR IS NULL
-               ORDER BY STRIP(t2.NOM)""",
+        sql="""
+            SELECT t1.CD_CLI_EMT AS MCI, STRIP(t2.NOM) AS NOM
+            FROM DB2AEB.PRM_EMP t1 INNER JOIN DB2MCI.CLIENTE t2 ON t2.COD = t1.CD_CLI_EMT
+            WHERE t1.DT_ECR_CTR IS NULL
+            ORDER BY STRIP(t2.NOM)
+        """,
         show_spinner=False,
         ttl=0
     )
-    return {k: v for k, v in zip(load["mci"].to_list(), load["nom"].to_list())}
+    return {k: v for k, v in zip(load["nom"].to_list(), load["mci"].to_list())}
 
 
 def load_empresa(key: str, value: int | str) -> pd.DataFrame:
     return engine.query(
-        sql=f"""SELECT t1.COD AS mci_empresa,
-                       t1.NOM AS nm_empresa,
-                       CASE
-                           WHEN t1.COD_TIPO = 2 THEN LPAD(t1.COD_CPF_CGC, 14, '0')
-                           ELSE LPAD(t1.COD_CPF_CGC, 11, '0')
-                       END AS cnpj_empresa
-                FROM DB2MCI.CLIENTE t1
-                WHERE t1.{key.upper()} = :value""",
+        sql=f"""
+            SELECT
+                t1.COD AS mci_empresa,
+                STRIP(t1.NOM) AS nm_empresa,
+                CASE
+                    WHEN t1.COD_TIPO = 2 THEN LPAD(t1.COD_CPF_CGC, 14, '0')
+                    ELSE LPAD(t1.COD_CPF_CGC, 11, '0')
+                END AS cnpj_empresa
+            FROM
+                DB2MCI.CLIENTE t1
+            WHERE
+                t1.{key.upper()} = :value
+        """,
         show_spinner=False,
         ttl=0,
         params=dict(value=value)
@@ -109,9 +116,9 @@ def load_tipo(_tipo: int) -> pd.DataFrame:
 
 
 with st.columns(2)[0]:
-    kv: dict[int, str] = load_client()
+    kv: dict[str, int] = load_client()
 
-    st.selectbox(label="**Empresa:**", options=kv.values(), key="empresa")
+    st.selectbox(label="**Empresa:**", options=kv.keys(), key="empresa")
     st.text_input(label="**Nome Investidor:**", max_chars=100, key="nome_investidor")
 
     col = st.columns([1.3, 1.6, 1.4])
@@ -123,7 +130,7 @@ with st.columns(2)[0]:
     st.button(label="**Pesquisar**", key="search", type="primary", icon=":material/search:")
 
 if st.session_state["search"]:
-    mci: int = next((chave for chave, valor in kv.items() if valor == st.session_state["empresa"]), 0)
+    mci: int = kv.get(st.session_state["empresa"])
 
     idx_custodia: int = 0 if st.session_state["custodiante"] == "Ambas" \
         else 903485186 if st.session_state["custodiante"] == "Banco do Brasil" else 205007939

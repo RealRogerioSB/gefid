@@ -32,97 +32,97 @@ st.subheader(":material/editor_choice: Declaração de Maiores Investidores")
 
 
 @st.cache_data(show_spinner="**:material/hourglass: Preparando a listagem da empresa, aguarde...**")
-def load_client() -> dict[int, str]:
+def load_client() -> dict[str, int]:
     load: pd.DataFrame = engine.query(
         sql="""
-        SELECT t1.CD_CLI_EMT AS MCI, STRIP(t2.NOM) AS NOM
-        FROM DB2AEB.PRM_EMP t1 INNER JOIN DB2MCI.CLIENTE t2 ON t2.COD = t1.CD_CLI_EMT
-        WHERE t1.DT_ECR_CTR IS NULL
-        ORDER BY STRIP(t2.NOM)
+            SELECT t1.CD_CLI_EMT AS MCI, STRIP(t2.NOM) AS NOM
+            FROM DB2AEB.PRM_EMP t1 INNER JOIN DB2MCI.CLIENTE t2 ON t2.COD = t1.CD_CLI_EMT
+            WHERE t1.DT_ECR_CTR IS NULL
+            ORDER BY STRIP(t2.NOM)
         """,
         show_spinner=False,
         ttl=0
     )
-    return {k: v for k, v in zip(load["mci"].to_list(), load["nom"].to_list())}
+    return {k: v for k, v in zip(load["nom"].to_list(), load["mci"].to_list())}
 
 
 def load_empresa(_mci: int, _data_ant: date, _data_atual: date, limite: int) -> pd.DataFrame:
     return engine.query(
         sql=f"""
-        SELECT
-            t5.CD_CLI_ACNT AS MCI,
-            STRIP(CASE
-                WHEN t5.CD_CLI_ACNT < 1000000000 THEN t6.NOM
-                ELSE t8.NM_INVR
-            END) AS INVESTIDOR,
-            CASE
-                WHEN t5.CD_CLI_ACNT < 1000000000 THEN
-                    CASE
-                        WHEN t6.COD_TIPO = 2 THEN LPAD(CAST(t6.COD_CPF_CGC AS BIGINT), 14, '0')
-                        ELSE LPAD(CAST(t6.COD_CPF_CGC AS BIGINT), 14, '0')
-                    END
-                ELSE
-                    CASE
-                        WHEN t6.COD_TIPO = 2 THEN LPAD(CAST(t8.NR_CPF_CNPJ_INVR AS BIGINT), 14, '0')
-                        ELSE LPAD(CAST(t8.NR_CPF_CNPJ_INVR AS BIGINT), 14, '0')
-                    END
-            END AS CPF_CNPJ,
-            t5.CD_TIP_TIT AS COD_TITULO,
-            CONCAT(STRIP(t7.SG_TIP_TIT), STRIP(t7.CD_CLS_TIP_TIT)) AS SIGLA,
-            CAST(t5.QUANTIDADE AS BIGINT) AS QTD,
-            CASE
-                WHEN t5.CD_CLI_CSTD = 903485186 THEN 'ESCRITURAL'
-                ELSE 'CUSTÓDIA'
-            END AS CUSTODIANTE
-        FROM (
             SELECT
-                CD_CLI_EMT,
-                CD_TIP_TIT,
-                CD_CLI_ACNT,
-                CD_CLI_CSTD,
-                DATA,
-                QUANTIDADE
+                t5.CD_CLI_ACNT AS MCI,
+                STRIP(CASE
+                    WHEN t5.CD_CLI_ACNT < 1000000000 THEN t6.NOM
+                    ELSE t8.NM_INVR
+                END) AS INVESTIDOR,
+                CASE
+                    WHEN t5.CD_CLI_ACNT < 1000000000 THEN
+                        CASE
+                            WHEN t6.COD_TIPO = 2 THEN LPAD(CAST(t6.COD_CPF_CGC AS BIGINT), 14, '0')
+                            ELSE LPAD(CAST(t6.COD_CPF_CGC AS BIGINT), 14, '0')
+                        END
+                    ELSE
+                        CASE
+                            WHEN t6.COD_TIPO = 2 THEN LPAD(CAST(t8.NR_CPF_CNPJ_INVR AS BIGINT), 14, '0')
+                            ELSE LPAD(CAST(t8.NR_CPF_CNPJ_INVR AS BIGINT), 14, '0')
+                        END
+                END AS CPF_CNPJ,
+                t5.CD_TIP_TIT AS COD_TITULO,
+                CONCAT(STRIP(t7.SG_TIP_TIT), STRIP(t7.CD_CLS_TIP_TIT)) AS SIGLA,
+                CAST(t5.QUANTIDADE AS BIGINT) AS QTD,
+                CASE
+                    WHEN t5.CD_CLI_CSTD = 903485186 THEN 'ESCRITURAL'
+                    ELSE 'CUSTÓDIA'
+                END AS CUSTODIANTE
             FROM (
                 SELECT
-                    t1.CD_CLI_EMT,
-                    t1.CD_TIP_TIT,
-                    t1.CD_CLI_ACNT,
-                    t1.CD_CLI_CSTD,
-                    t1.DT_MVTC AS DATA,
-                    t1.QT_TIT_ATU AS QUANTIDADE
-                FROM
-                    DB2AEB.MVTC_DIAR_PSC t1
-                WHERE
-                    t1.CD_CLI_EMT = :mci AND
-                    t1.CD_CLI_ACNT <> 205007939
-                UNION ALL
-                SELECT
-                    t1.CD_CLI_EMT,
-                    t1.CD_TIP_TIT,
-                    t1.CD_CLI_ACNT,
-                    t1.CD_CLI_CSTD,
-                    t1.DT_PSC - 1 DAY AS DATA,
-                    t1.QT_TIT_INC_MM AS QUANTIDADE
-                FROM
-                    DB2AEB.PSC_TIT_MVTD t1
-                WHERE
-                    t1.CD_CLI_EMT = :mci AND
-                    t1.CD_CLI_ACNT <> 205007939
-            )
-        ) t5
-            LEFT JOIN DB2MCI.CLIENTE t6
-                ON t6.COD = t5.CD_CLI_ACNT
-            LEFT JOIN DB2AEB.TIP_TIT t7
-                ON t7.CD_TIP_TIT = t5.CD_TIP_TIT
-            LEFT JOIN DB2AEB.VCL_ACNT_BLS t8
-                ON t8.CD_CLI_ACNT = t5.CD_CLI_ACNT
-        WHERE
-            DATA BETWEEN :data_ant AND :data_atual AND
-            t5.CD_CLI_ACNT NOT IN (:mci, 205007939)
-        ORDER BY
-            CAST(t5.CD_CLI_ACNT AS INTEGER),
-            DATA DESC
-        FETCH FIRST {limite} ROWS ONLY
+                    CD_CLI_EMT,
+                    CD_TIP_TIT,
+                    CD_CLI_ACNT,
+                    CD_CLI_CSTD,
+                    DATA,
+                    QUANTIDADE
+                FROM (
+                    SELECT
+                        t1.CD_CLI_EMT,
+                        t1.CD_TIP_TIT,
+                        t1.CD_CLI_ACNT,
+                        t1.CD_CLI_CSTD,
+                        t1.DT_MVTC AS DATA,
+                        t1.QT_TIT_ATU AS QUANTIDADE
+                    FROM
+                        DB2AEB.MVTC_DIAR_PSC t1
+                    WHERE
+                        t1.CD_CLI_EMT = :mci AND
+                        t1.CD_CLI_ACNT <> 205007939
+                    UNION ALL
+                    SELECT
+                        t1.CD_CLI_EMT,
+                        t1.CD_TIP_TIT,
+                        t1.CD_CLI_ACNT,
+                        t1.CD_CLI_CSTD,
+                        t1.DT_PSC - 1 DAY AS DATA,
+                        t1.QT_TIT_INC_MM AS QUANTIDADE
+                    FROM
+                        DB2AEB.PSC_TIT_MVTD t1
+                    WHERE
+                        t1.CD_CLI_EMT = :mci AND
+                        t1.CD_CLI_ACNT <> 205007939
+                )
+            ) t5
+                LEFT JOIN DB2MCI.CLIENTE t6
+                    ON t6.COD = t5.CD_CLI_ACNT
+                LEFT JOIN DB2AEB.TIP_TIT t7
+                    ON t7.CD_TIP_TIT = t5.CD_TIP_TIT
+                LEFT JOIN DB2AEB.VCL_ACNT_BLS t8
+                    ON t8.CD_CLI_ACNT = t5.CD_CLI_ACNT
+            WHERE
+                DATA BETWEEN :data_ant AND :data_atual AND
+                t5.CD_CLI_ACNT NOT IN (:mci, 205007939)
+            ORDER BY
+                CAST(t5.CD_CLI_ACNT AS INTEGER),
+                DATA DESC
+            FETCH FIRST {limite} ROWS ONLY
         """,
         show_spinner=False,
         ttl=0,
@@ -133,16 +133,9 @@ def load_empresa(_mci: int, _data_ant: date, _data_atual: date, limite: int) -> 
 def load_cadastro(_mci: int) -> tuple[str, ...]:
     load: pd.DataFrame = engine.query(
         sql="""
-        SELECT
-            t1.CD_CLI_EMT AS MCI,
-            STRIP(t2.NOM) AS EMPRESA,
-            LPAD(t2.COD_CPF_CGC, 14, '0') AS CNPJ
-            FROM
-            DB2AEB.PRM_EMP t1
-            INNER JOIN DB2MCI.CLIENTE t2
-                ON t2.COD = t1.CD_CLI_EMT
-        WHERE
-            t1.CD_CLI_EMT = :mci
+            SELECT t1.CD_CLI_EMT AS MCI, STRIP(t2.NOM) AS EMPRESA, LPAD(t2.COD_CPF_CGC, 14, '0') AS CNPJ
+            FROM DB2AEB.PRM_EMP t1 INNER JOIN DB2MCI.CLIENTE t2 ON t2.COD = t1.CD_CLI_EMT
+            WHERE t1.CD_CLI_EMT = :mci
         """,
         show_spinner=False,
         ttl=0,
@@ -157,11 +150,11 @@ with open("static/arquivos/protocolador/protocolador.txt") as f:
 
 st.markdown(f"Protocolo: **{date.today().year}** / DIEST: **{last_protocol}**")
 
-kv: dict[int, str] = load_client()
+kv: dict[str, int] = load_client()
 
-st.columns(2)[0].selectbox("**Clientes Ativos:**", options=kv.values(), key="empresa", on_change=state)
+st.columns(2)[0].selectbox("**Clientes Ativos:**", options=kv.keys(), key="empresa", on_change=state)
 
-mci: int = next((chave for chave, valor in kv.items() if valor == st.session_state["empresa"]), 0)
+mci: int = kv.get(st.session_state["empresa"])
 
 col1, col2, _ = st.columns([1, 0.8, 5.2])
 col1.date_input("**Data:**", key="data", format="DD/MM/YYYY")

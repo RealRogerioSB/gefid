@@ -11,23 +11,18 @@ st.subheader(":material/paid: Rendimentos Pagos")
 
 
 @st.cache_data(show_spinner=":material/hourglass: Preparando a lista de empresa, aguarde...")
-def load_active(active: str) -> dict[int, str]:
+def load_active(active: str) -> dict[str, int]:
     load: pd.DataFrame = engine.query(
         sql=f"""
-            SELECT
-                t1.CD_CLI_EMT AS MCI,
-                t2.NOM
-            FROM
-                DB2AEB.PRM_EMP AS t1
-                INNER JOIN DB2MCI.CLIENTE AS t2
-                    ON t2.COD = t1.CD_CLI_EMT
-            WHERE
-                t1.DT_ECR_CTR IS {active}
+            SELECT t1.CD_CLI_EMT AS MCI, STRIP(t2.NOM) AS NOM
+            FROM DB2AEB.PRM_EMP AS t1 INNER JOIN DB2MCI.CLIENTE AS t2 ON t2.COD = t1.CD_CLI_EMT
+            WHERE t1.DT_ECR_CTR IS {active}
+            ORDER BY STRIP(t2.NOM)
         """,
         show_spinner=False,
         ttl=0,
     )
-    return {k: v for k, v in zip(load["mci"].to_list(), load["nom"].to_list())}
+    return {k: v for k, v in zip(load["nom"].to_list(), load["mci"].to_list())}
 
 
 def load_report(_mci: int, _ano: int, _mes: int) -> pd.DataFrame:
@@ -70,13 +65,13 @@ def load_report(_mci: int, _ano: int, _mes: int) -> pd.DataFrame:
     )
 
 
-def load_data(_mci: int) -> pd.DataFrame:
-    return engine.query(
+def load_data(_mci: int) -> tuple[str, ...]:
+    load: pd.DataFrame = engine.query(
         sql="""
             SELECT
                 t1.CD_CLI_EMT AS MCI,
-                t1.SG_EMP AS SIGLA,
-                t2.NOM AS EMPRESA,
+                STRIP(t1.SG_EMP) AS SIGLA,
+                STRIP(t2.NOM) AS EMPRESA,
                 CASE
                     WHEN t2.COD_TIPO = 2 THEN LPAD(t2.COD_CPF_CGC, 14, '0')
                     ELSE LPAD(t2.COD_CPF_CGC, 11, '0')
@@ -93,19 +88,21 @@ def load_data(_mci: int) -> pd.DataFrame:
         params=dict(mci=_mci),
     )
 
+    return str(load["mci"].iloc[0]), load["empresa"].iloc[0], load["cnpj"].iloc[0], load["sigla"].iloc[0]
 
-st.radio(label="**Situação de Clientes:**", options=["ativos", "inativos"], key="option_active")
 
-kv: dict[int, str] = load_active("NULL") if st.session_state["option_active"] == "ativos" else load_active("NOT NULL")
+st.radio(label="**Situação de Clientes:**", options=["ativos", "inativos"], key="option")
+
+kv: dict[str, int] = load_active("NULL") if st.session_state["option"] == "ativos" else load_active("NOT NULL")
 
 with st.columns(2)[0]:
     st.selectbox(
-        label="**Clientes ativos:**" if st.session_state["option_active"] == "ativos" else "**Clientes inativos:**",
-        options=sorted(kv.values()),
+        label="**Clientes ativos:**" if st.session_state["option"] == "ativos" else "**Clientes inativos:**",
+        options=kv.keys(),
         key="empresa",
     )
 
-    mci: int = next((chave for chave, valor in kv.items() if valor == st.session_state["empresa"]), 0)
+    mci: int = kv.get(st.session_state["empresa"])
 
     col = st.columns([2, 1, 1])
     col[0].slider(label="**Mês:**", min_value=1, max_value=12, value=date.today().month, key="mês")
@@ -113,10 +110,9 @@ with st.columns(2)[0]:
 
     params: dict[str, bool | str] = dict(type="primary", use_container_width=True)
 
-    st.divider()
+    st.markdown("")
 
     col = st.columns(3)
-
     col[0].button(label="**Visualizar na tela**", key="view", icon=":material/preview:", **params)
     col[1].button(label="**Baixar CSV**", key="csv", icon=":material/download:", **params)
     col[2].button(label="**Baixar Excel**", key="xlsx", icon=":material/download:", **params)
@@ -125,11 +121,11 @@ if st.session_state["view"]:
     with st.spinner("**:material/hourglass: Preparando os dados para exibir, aguarde...**", show_time=True):
         get_view: pd.DataFrame = load_report(mci, st.session_state["ano"], st.session_state["mês"])
         if not get_view.empty:
-            get_data: pd.DataFrame = load_data(mci)
+            mci_inv, nome_inv, cnpj_inv, _ = load_data(mci)
 
-            st.write(f"**MCI:** {get_data['mci'].iloc[0]}")
-            st.write(f"**EMPRESA:** {get_data['empresa'].iloc[0]}")
-            st.write(f"**CNPJ:** {get_data['cnpj'].iloc[0]}")
+            st.write(f"**MCI:** {mci_inv}")
+            st.write(f"**EMPRESA:** {nome_inv}")
+            st.write(f"**CNPJ:** {cnpj_inv}")
             st.write(f"**MÊS/ANO:** {st.session_state['mês']:02d}/{st.session_state['ano']}")
             st.write(f"**TOTAL BRUTO:** R$ {float(get_view['valor'].sum()):_.2f}"
                      .replace(".", ",").replace("_", "."))
@@ -166,7 +162,7 @@ if st.session_state["csv"]:
         get_report: pd.DataFrame = load_report(mci, st.session_state["ano"], st.session_state["mês"])
 
         if not get_report.empty:
-            sigla: str = load_data(mci)["sigla"].iloc[0]
+            sigla: str = load_data(mci)[3]
 
             st.toast("**Arquivo CSV pronto para baixar**", icon=":material/check_circle:")
 
@@ -188,7 +184,7 @@ if st.session_state["xlsx"]:
         get_report: pd.DataFrame = load_report(mci, st.session_state["ano"], st.session_state["mês"])
 
         if not get_report.empty:
-            sigla: str = load_data(mci)["sigla"].iloc[0]
+            sigla: str = load_data(mci)[3]
 
             path_xls: io.BytesIO = io.BytesIO()
 

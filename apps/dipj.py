@@ -15,25 +15,18 @@ st.columns(2)[0].markdown("##### Devem ser colocados 12 arquivos 064B da mesma e
 
 
 @st.cache_data(show_spinner="**:material/hourglass: Preparando a listagem da empresa, aguarde...**")
-def load_active(active: str) -> dict[int, str]:
+def load_active(active: str) -> dict[str, int]:
     load: pd.DataFrame = engine.query(
         sql=f"""
-            SELECT
-                t1.CD_CLI_EMT AS MCI,
-                STRIP(t2.NOM) AS NOM
-            FROM
-                DB2AEB.PRM_EMP AS t1
-                INNER JOIN DB2MCI.CLIENTE AS t2
-                    ON t2.COD = t1.CD_CLI_EMT
-            WHERE
-                t1.DT_ECR_CTR IS {active.upper()}
-            ORDER BY
-                STRIP(t2.NOM)
+            SELECT t1.CD_CLI_EMT AS MCI, STRIP(t2.NOM) AS NOM
+            FROM DB2AEB.PRM_EMP AS t1 INNER JOIN DB2MCI.CLIENTE AS t2 ON t2.COD = t1.CD_CLI_EMT
+            WHERE t1.DT_ECR_CTR IS {active.upper()}
+            ORDER BY STRIP(t2.NOM)
         """,
         show_spinner=False,
         ttl=0,
     )
-    return {k: v for k, v in zip(load["mci"].to_list(), load["nom"].to_list())}
+    return {k: v for k, v in zip(load["nom"].to_list(), load["mci"].to_list())}
 
 
 def load_report(_mci: int) -> tuple[str, ...]:
@@ -63,17 +56,17 @@ def load_report(_mci: int) -> tuple[str, ...]:
 
 
 col1 = st.columns(2)[0]
-col1.radio(label="**Situação de Clientes:**", options=["ativos", "inativos"], key="option_active")
+col1.radio(label="**Situação de Clientes:**", options=["ativos", "inativos"], key="option")
 
-kv: dict[int, str] = load_active("null") if st.session_state["option_active"] == "ativos" else load_active("not null")
+kv: dict[str, int] = load_active("null") if st.session_state["option"] == "ativos" else load_active("not null")
 
 col1.selectbox(
-    label="**Clientes ativos:**" if st.session_state["option_active"] == "ativos" else "**Clientes inativos:**",
-    options=kv.values(),
+    label="**Clientes ativos:**" if st.session_state["option"] == "ativos" else "**Clientes inativos:**",
+    options=kv.keys(),
     key="empresa"
 )
 
-mci: int = next((chave for chave, valor in kv.items() if valor == st.session_state["empresa"]), 0)
+mci: int = kv.get(st.session_state["empresa"])
 
 if st.button("**Gerar DIPJ**", type="primary", icon=":material/save:"):
     with st.spinner("**:material/hourglass: Verificando os dados, aguarde...**", show_time=True):

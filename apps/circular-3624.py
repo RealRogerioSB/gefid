@@ -16,26 +16,30 @@ st.columns([3, 1])[0].markdown("#### Envio de arquivo à COGER, com a informaç�
 def load_data(year: int, month: int) -> pd.DataFrame:
     return engine.query(
         sql="""
-            SELECT t2.CD_CLSC_TIP_DRT,
-                   t1.DT_DLBC,
-                   YEAR(t1.DT_DLBC) AS ANO_DELIB,
-                   t1.VL_MVT_REN,
-                   t1.VL_IR_CLCD_MVT_REN,
-                   t1.VL_MVT_REN - t1.VL_IR_CLCD_MVT_REN AS LIQUIDO_PRINCIPAL,
-                   t1.VL_CORR_MVT_REN,
-                   t1.VL_IR_CORR_MVT_REN,
-                   t1.VL_IR_CORR_MVT_REN - t1.VL_IR_CORR_MVT_REN AS LIQUIDO_CORR
-            FROM DB2AEB.MVT_REN t1
-                     INNER JOIN DB2AEB.TIP_DRT t2
-                                ON t2.CD_TIP_DRT = t1.CD_TIP_DRT
-            WHERE t1.CD_TIP_DRT IN (9)
-              AND YEAR(t1.DT_MVT_DRT) = :year
-              AND MONTH(t1.DT_MVT_DRT) = :month
-              AND t1.CD_CLI_DLBC IN (903485186)
-              AND t2.CD_CLSC_TIP_DRT IN (1, 5, 10, 14)
-            ORDER BY t1.DT_DLBC DESC,
-                     t1.CD_TIP_DRT
-            """,
+            SELECT
+                t2.CD_CLSC_TIP_DRT,
+                t1.DT_DLBC,
+                YEAR(t1.DT_DLBC) AS ANO_DELIB,
+                t1.VL_MVT_REN,
+                t1.VL_IR_CLCD_MVT_REN,
+                t1.VL_MVT_REN - t1.VL_IR_CLCD_MVT_REN AS LIQUIDO_PRINCIPAL,
+                t1.VL_CORR_MVT_REN,
+                t1.VL_IR_CORR_MVT_REN,
+                t1.VL_IR_CORR_MVT_REN - t1.VL_IR_CORR_MVT_REN AS LIQUIDO_CORR
+            FROM
+                DB2AEB.MVT_REN t1
+                    INNER JOIN DB2AEB.TIP_DRT t2
+                        ON t2.CD_TIP_DRT = t1.CD_TIP_DRT
+            WHERE
+                t1.CD_TIP_DRT IN (9) AND
+                YEAR(t1.DT_MVT_DRT) = :year AND
+                MONTH(t1.DT_MVT_DRT) = :month AND
+                t1.CD_CLI_DLBC IN (903485186) AND
+                t2.CD_CLSC_TIP_DRT IN (1, 5, 10, 14)
+            ORDER BY
+                t1.DT_DLBC DESC,
+                t1.CD_TIP_DRT
+        """,
         show_spinner=False,
         ttl=0,
         params=dict(year=year, month=month),
@@ -49,7 +53,7 @@ def preparo_xlsx(year: int, month: int) -> None:
         st.toast(body="**Não há dados para enviar**", icon=":material/error:")
         st.stop()
 
-    with st.spinner("**:material/hourglass: Obtendo os dados, aguarde...**", show_time=True):
+    with st.spinner("**:material/hourglass: Preparando os dados para enviar, aguarde...**", show_time=True):
         with xlsxwriter.Workbook(f"static/escriturais/@deletar/circular3624-{year}-{month}.xlsx") as wb:
             ws = wb.add_worksheet(f"{year}{month:02d}")
 
@@ -313,8 +317,8 @@ with open("static/arquivos/email3624.txt") as f:
     email = f.readlines()
 
 with st.columns(2)[0]:
-    st.text_input(label="**Para:**", key="to_addrs", value=email[0])
-    st.text_input(label="**Cc:**", key="cc_addrs", value=email[1])
+    st.text_input(label="**Para:**", key="to_addrs", value=email[0], icon=":material/mail:")
+    st.text_input(label="**Cc:**", key="cc_addrs", value=email[1], icon=":material/mail:")
 
     col = st.columns([3, 1])
     col[0].slider(
@@ -331,7 +335,7 @@ with st.columns(2)[0]:
         index=0 if 1 <= date.today().month - 1 else 1
     )
 
-    st.button("**Enviar**", key="mail", type="primary", icon=":material/mail:")
+st.columns(8)[0].button("**Enviar**", key="mail", type="primary", icon=":material/mail:", use_container_width=True)
 
 if st.session_state["mail"]:
     if any([st.session_state["to_addrs"], st.session_state["cc_addrs"]]):

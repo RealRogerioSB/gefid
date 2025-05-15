@@ -10,25 +10,18 @@ st.subheader(":material/savings: Rendimentos Pendentes")
 
 
 @st.cache_data(show_spinner="**:material/hourglass: Carregando a listagem de empresa, aguarde...**")
-def load_active(active: str) -> dict[int, str]:
+def load_active(active: str) -> dict[str, int]:
     load: pd.DataFrame = engine.query(
         sql=f"""
-            SELECT
-                t1.CD_CLI_EMT AS MCI,
-                STRIP(t2.NOM) AS NOM
-            FROM
-                DB2AEB.PRM_EMP AS t1
-                INNER JOIN DB2MCI.CLIENTE AS t2
-                    ON t2.COD = t1.CD_CLI_EMT
-            WHERE
-                t1.DT_ECR_CTR IS {active.upper()}
-            ORDER BY
-                STRIP(t2.NOM)
+            SELECT t1.CD_CLI_EMT AS MCI, STRIP(t2.NOM) AS NOM
+            FROM DB2AEB.PRM_EMP AS t1 INNER JOIN DB2MCI.CLIENTE AS t2 ON t2.COD = t1.CD_CLI_EMT
+            WHERE t1.DT_ECR_CTR IS {active}
+            ORDER BY STRIP(t2.NOM)
         """,
         show_spinner=False,
         ttl=0,
     )
-    return {k: v for k, v in zip(load["mci"].to_list(), load["nom"].to_list())}
+    return {k: v for k, v in zip(load["nom"].to_list(), load["mci"].to_list())}
 
 
 def load_report(_mci: int) -> pd.DataFrame:
@@ -69,8 +62,8 @@ def load_report(_mci: int) -> pd.DataFrame:
     )
 
 
-def load_data(_mci: int) -> pd.DataFrame:
-    return engine.query(
+def load_data(_mci: int) -> tuple[str, ...]:
+    load: pd.DataFrame = engine.query(
         sql="""
             SELECT
                 t1.CD_CLI_EMT AS MCI,
@@ -92,26 +85,27 @@ def load_data(_mci: int) -> pd.DataFrame:
         params=dict(mci=_mci),
     )
 
+    return str(load["mci"].iloc[0]), load["empresa"].iloc[0], load["cnpj"].iloc[0], load["sigla"].iloc[0]
+
 
 st.radio(label="**Situação de Clientes:**", options=["ativos", "inativos"], key="option_active")
 
-kv: dict[int, str] = load_active("null") if st.session_state["option_active"] == "ativos" else load_active("not null")
+kv: dict[str, int] = load_active("null") if st.session_state["option_active"] == "ativos" else load_active("not null")
 
 with st.columns(2)[0]:
     st.selectbox(
         label="**Clientes ativos:**" if st.session_state["option_active"] == "ativos" else "**Clientes inativos:**",
-        options=sorted(kv.values()),
+        options=kv.keys(),
         key="empresa"
     )
 
-    mci: int = next((chave for chave, valor in kv.items() if valor == st.session_state["empresa"]), 0)
+    mci: int = kv.get(st.session_state["empresa"])
 
     params: dict[str, bool | str] = dict(type="primary", use_container_width=True)
 
-    st.divider()
+    st.markdown("")
 
     col = st.columns(3)
-
     col[0].button(label="**Visualizar na tela**", key="view", icon=":material/preview:", **params)
     col[1].button(label="**Baixar CSV**", key="csv", icon=":material/download:", **params)
     col[2].button(label="**Baixar Excel**", key="xlsx", icon=":material/download:", **params)
@@ -121,11 +115,11 @@ if st.session_state["view"]:
         get_view: pd.DataFrame = load_report(mci)
 
         if not get_view.empty:
-            get_data: pd.DataFrame = load_data(mci)
+            mci_inv, nome_inv, cnpj_inv, _ = load_data(mci)
 
-            st.write(f"**MCI:** {get_data['mci'].iloc[0]}")
-            st.write(f"**EMPRESA:** {get_data['empresa'].iloc[0]}")
-            st.write(f"**CNPJ:** {get_data['cnpj'].iloc[0]}")
+            st.write(f"**MCI:** {mci_inv}")
+            st.write(f"**EMPRESA:** {nome_inv}")
+            st.write(f"**CNPJ:** {cnpj_inv}")
             st.write(f"**TOTAL BRUTO:** R$ {float(get_view['valor'].sum()):_.2f}"
                      .replace(".", ",").replace("_", "."))
             st.write(f"**TOTAL IR:** R$ {float(get_view['valor_ir'].sum()):_.2f}"
@@ -161,7 +155,7 @@ if st.session_state["csv"]:
         get_csv: pd.DataFrame = load_report(mci)
 
         if not get_csv.empty:
-            sigla: str = load_data(mci)["sigla"].iloc[0]
+            sigla: str = load_data(mci)[3]
 
             st.download_button(
                 label="**Baixar CSV**",
@@ -173,6 +167,8 @@ if st.session_state["csv"]:
                 icon=":material/download:",
             )
 
+            st.toast(body="**Arquivo CSV pronto para baixar**", icon=":material/check_circle:")
+
         else:
             st.toast(body="**Não há dados para exibir...**", icon=":material/error:")
 
@@ -181,7 +177,7 @@ if st.session_state["xlsx"]:
         get_report: pd.DataFrame = load_report(mci)
 
         if not get_report.empty:
-            sigla: str = load_data(mci)["sigla"].iloc[0]
+            sigla: str = load_data(mci)[3]
 
             path_xls: io.BytesIO = io.BytesIO()
 

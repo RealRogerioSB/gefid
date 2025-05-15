@@ -21,11 +21,11 @@ def load_acionista(key: str, value: int | str) -> pd.DataFrame:
 
 def load_certificado(value: tuple) -> pd.DataFrame:
     return engine.query(
-        sql=f"""SELECT DISTINCT
-                    INSCRICAO,
-                    NUMERO_CERT, NR_PRIM_ACAO, DATA_EMIS, QT_ACOES
-                FROM DB2I13E5.SISTEMA_ANTIGO_CERTIFICADOS
-                WHERE INSCRICAO IN {value}""",
+        sql=f"""
+            SELECT DISTINCT INSCRICAO, NUMERO_CERT, NR_PRIM_ACAO, DATA_EMIS, QT_ACOES
+            FROM DB2I13E5.SISTEMA_ANTIGO_CERTIFICADOS
+            WHERE INSCRICAO IN {value}
+        """,
         show_spinner=False,
         ttl=0,
     )

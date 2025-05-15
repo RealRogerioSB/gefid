@@ -25,15 +25,15 @@ st.subheader(":material/hide_source: Cancelamento de CEPAC")
 def load_extract_mci(mci: int, active: int) -> pd.DataFrame:
     return engine.query(
         sql="""
-        SELECT CAST(t1.DT_MVTC AS DATE) AS DATA_MVTC,
-               CAST(t1.QT_TIT_MVTD AS INT) AS MVT,
-               CAST(t1.QT_TIT_ATU AS INT) AS SALDO
-        FROM DB2AEB.MVTC_DIAR_PSC t1
-        WHERE t1.CD_CLI_EMT = 906535030 
-          AND t1.CD_CLI_ACNT = :mci
-          AND t1.CD_CLI_CSTD = 903485186
-          AND t1.CD_TIP_TIT = :active
-        ORDER BY t1.DT_MVTC
+            SELECT CAST(t1.DT_MVTC AS DATE) AS DATA_MVTC,
+                   CAST(t1.QT_TIT_MVTD AS INT) AS MVT,
+                   CAST(t1.QT_TIT_ATU AS INT) AS SALDO
+            FROM DB2AEB.MVTC_DIAR_PSC t1
+            WHERE t1.CD_CLI_EMT = 906535030 
+              AND t1.CD_CLI_ACNT = :mci
+              AND t1.CD_CLI_CSTD = 903485186
+              AND t1.CD_TIP_TIT = :active
+            ORDER BY t1.DT_MVTC
         """,
         show_spinner=False,
         ttl=0,
@@ -44,17 +44,17 @@ def load_extract_mci(mci: int, active: int) -> pd.DataFrame:
 def load_extract_cnpj(cnpj: int, active: int) -> pd.DataFrame:
     return engine.query(
         sql="""
-        SELECT CAST(t1.DT_MVTC AS DATE) AS DATA_MVTC,
-               CAST(t1.QT_TIT_MVTD AS INT) AS MVT,
-               CAST(t1.QT_TIT_ATU AS INT) AS SALDO
-        FROM DB2AEB.MVTC_DIAR_PSC t1
-                INNER JOIN DB2MCI.CLIENTE t2
-                        ON t2.COD = t1.CD_CLI_ACNT
-        WHERE t1.CD_CLI_EMT = 906535030 
-          AND t2.COD_CPF_CGC = :cnpj
-          AND t1.CD_CLI_CSTD = 903485186
-          AND t1.CD_TIP_TIT = :active
-        ORDER BY t1.DT_MVTC
+            SELECT CAST(t1.DT_MVTC AS DATE) AS DATA_MVTC,
+                   CAST(t1.QT_TIT_MVTD AS INT) AS MVT,
+                   CAST(t1.QT_TIT_ATU AS INT) AS SALDO
+            FROM DB2AEB.MVTC_DIAR_PSC t1
+                    INNER JOIN DB2MCI.CLIENTE t2
+                            ON t2.COD = t1.CD_CLI_ACNT
+            WHERE t1.CD_CLI_EMT = 906535030 
+              AND t2.COD_CPF_CGC = :cnpj
+              AND t1.CD_CLI_CSTD = 903485186
+              AND t1.CD_TIP_TIT = :active
+            ORDER BY t1.DT_MVTC
         """,
         show_spinner=False,
         ttl=0,
@@ -65,14 +65,15 @@ def load_extract_cnpj(cnpj: int, active: int) -> pd.DataFrame:
 def load_cadastro(field: str, value: int) -> pd.DataFrame:
     return engine.query(
         sql=f"""
-        SELECT t1.COD AS MCI_INVESTIDOR,
-               STRIP(t1.NOM) AS INVESTIDOR,
-               CASE
-                   WHEN t1.COD_TIPO = 2 THEN LPAD(t1.COD_CPF_CGC, 14, '0')
-                   ELSE LPAD(t1.COD_CPF_CGC, 11, '0')
-               END AS CPF_CNPJ
-        FROM DB2MCI.CLIENTE t1
-        WHERE t1.{field.upper()} = :value
+            SELECT
+                t1.COD AS MCI_INVESTIDOR,
+                STRIP(t1.NOM) AS INVESTIDOR,
+                CASE
+                    WHEN t1.COD_TIPO = 2 THEN LPAD(t1.COD_CPF_CGC, 14, '0')
+                    ELSE LPAD(t1.COD_CPF_CGC, 11, '0')
+                END AS CPF_CNPJ
+            FROM DB2MCI.CLIENTE t1
+            WHERE t1.{field.upper()} = :value
         """,
         show_spinner=False,
         ttl=0,

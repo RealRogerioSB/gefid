@@ -22,17 +22,22 @@ st.subheader(":material/published_with_changes: Autorregulação BB")
 def load_evid(_data_pos: date) -> pd.DataFrame:
     return engine.query(
         sql="""
-            SELECT CAST(CD_CLI_ACNT AS BIGINT) AS MCI,
-                   SUM(CAST(QT_TIT_INC_MM AS BIGINT)) AS QUANTIDADE
-            FROM DB2AEB.PSC_TIT_MVTD
-            WHERE CD_CLI_ACNT IN ('423566153', '100225800', '100186582', '903485186', '903721460')
-              AND DT_PSC = :data_posterior
-              AND CD_CLI_EMT = 903485186
-            GROUP BY CD_CLI_ACNT,
-                     DT_PSC,
-                     CD_CLI_EMT
-            ORDER BY CD_CLI_ACNT
-            """,
+            SELECT
+                CAST(CD_CLI_ACNT AS BIGINT) AS MCI,
+                SUM(CAST(QT_TIT_INC_MM AS BIGINT)) AS QUANTIDADE
+            FROM
+                DB2AEB.PSC_TIT_MVTD
+            WHERE
+                CD_CLI_ACNT IN ('423566153', '100225800', '100186582', '903485186', '903721460') AND
+                DT_PSC = :data_posterior AND
+                CD_CLI_EMT = 903485186
+            GROUP BY
+                CD_CLI_ACNT,
+                DT_PSC,
+                CD_CLI_EMT
+            ORDER BY
+                CD_CLI_ACNT
+        """,
         ttl=0,
         show_spinner=False,
         params=dict(data_posterior=_data_pos),
@@ -70,8 +75,8 @@ with st.columns(3)[0]:
 
 if st.session_state["btn_ev"]:
     data_pos: date = date(
-        st.session_state["ano_evid"] + 1 if st.session_state["mes_evid"] == 12 else st.session_state["ano_evid"],
-        1 if st.session_state["mes_evid"] == 12 else st.session_state["mes_evid"] + 1,
+        st.session_state["ano_ev"] + 1 if st.session_state["mes_ev"] == 12 else st.session_state["ano_ev"],
+        1 if st.session_state["mes_ev"] == 12 else st.session_state["mes_ev"] + 1,
         1
     )
 
@@ -132,8 +137,8 @@ if st.session_state["btn_ev"]:
 
 if st.session_state["btn_ac"]:
     data_pos: date = date(
-        st.session_state["ano_aci"] + 1 if st.session_state["mes_aci"] == 12 else st.session_state["ano_aci"],
-        1 if st.session_state["mes_aci"] == 12 else st.session_state["mes_aci"] + 1,
+        st.session_state["ano_ac"] + 1 if st.session_state["mes_ac"] == 12 else st.session_state["ano_ac"],
+        1 if st.session_state["mes_ac"] == 12 else st.session_state["mes_ac"] + 1,
         1
     )
 
@@ -294,8 +299,8 @@ if st.session_state["btn_ac"]:
 
 if st.session_state["btn_au"]:
     data_pos = date(
-        st.session_state["ano_auto"] + 1 if st.session_state["mes_auto"] == 12 else st.session_state["ano_auto"],
-        1 if st.session_state["mes_auto"] == 12 else st.session_state["mes_auto"] + 1,
+        st.session_state["ano_au"] + 1 if st.session_state["mes_au"] == 12 else st.session_state["ano_au"],
+        1 if st.session_state["mes_au"] == 12 else st.session_state["mes_au"] + 1,
         1
     ) - timedelta(days=1)
 

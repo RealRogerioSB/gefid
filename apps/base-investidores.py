@@ -11,25 +11,18 @@ st.subheader(":material/account_balance: Base de Investidores")
 
 
 @st.cache_data(show_spinner="**:material/hourglass: Carregando a listagem da empresa, aguarde...**")
-def load_active(active: str) -> dict[int, str]:
+def load_active(active: str) -> dict[str, int]:
     load = engine.query(
         sql=f"""
-            SELECT
-                t1.CD_CLI_EMT AS MCI,
-                STRIP(t2.NOM) AS NOM
-            FROM
-                DB2AEB.PRM_EMP AS t1
-                INNER JOIN DB2MCI.CLIENTE AS t2
-                    ON t2.COD = t1.CD_CLI_EMT
-            WHERE
-                t1.DT_ECR_CTR IS {active.upper()}
-            ORDER BY
-                STRIP(t2.NOM)
+            SELECT t1.CD_CLI_EMT AS MCI, STRIP(t2.NOM) AS NOM
+            FROM DB2AEB.PRM_EMP AS t1 INNER JOIN DB2MCI.CLIENTE AS t2 ON t2.COD = t1.CD_CLI_EMT
+            WHERE t1.DT_ECR_CTR IS {active.upper()}
+            ORDER BY STRIP(t2.NOM)
         """,
         show_spinner=False,
         ttl=0,
     )
-    return {k: v for k, v in zip(load["mci"].to_list(), load["nom"].to_list())}
+    return {k: v for k, v in zip(load["nom"].to_list(), load["mci"].to_list())}
 
 
 def load_report(_mci: int, _data_ant: date, _data: date):
@@ -184,28 +177,28 @@ def load_data(_mci: int) -> tuple[str, ...]:
     return str(load["mci"].iloc[0]), load["empresa"].iloc[0], load["cnpj"].iloc[0], load["sigla"].iloc[0]
 
 
-st.radio(label="**Situação de Clientes:**", options=["ativos", "inativos"], key="option_active")
+params: dict[str, bool | str] = dict(type="primary", use_container_width=True)
 
-kv: dict[int, str] = load_active("null" if st.session_state["option_active"] == "ativos" else "not null")
+st.radio(label="**Situação de Clientes:**", options=["ativos", "inativos"], key="option")
+
+kv: dict[str, int] = load_active("null" if st.session_state["option"] == "ativos" else "not null")
 
 with st.columns(2)[0]:
     st.selectbox(
-        label="**Clientes ativos:**" if st.session_state["option_active"] == "ativos" else "**Clientes inativos:**",
-        options=kv.values(),
+        label="**Clientes ativos:**" if st.session_state["option"] == "ativos" else "**Clientes inativos:**",
+        options=kv.keys(),
         key="empresa",
     )
 
     with st.columns(3)[0]:
         st.date_input(label="**Data:**", value=date.today(), key="data", format="DD/MM/YYYY")
 
-mci: int = next((chave for chave, valor in kv.items() if valor == st.session_state["empresa"]), 0)
+mci: int = kv.get(st.session_state["empresa"])
 
 data_ant: date = (st.session_state["data"].replace(day=1) - timedelta(days=1)).replace(day=28)
 
 with st.columns(2)[0]:
-    st.divider()
-
-    params: dict[str, bool | str] = dict(type="primary", use_container_width=True)
+    st.markdown("")
 
     col = st.columns(3)
     col[0].button(label="**Visualizar na tela**", key="view", icon=":material/preview:", **params)
