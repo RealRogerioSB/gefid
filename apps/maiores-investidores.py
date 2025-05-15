@@ -10,7 +10,6 @@ import pandas as pd
 import reportlab.rl_config
 import streamlit as st
 from reportlab.lib import colors
-from reportlab.lib.enums import TA_JUSTIFY, TA_RIGHT
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle
 from reportlab.pdfbase import pdfmetrics
@@ -46,7 +45,7 @@ def load_client() -> dict[str, int]:
     return {k: v for k, v in zip(load["nom"].to_list(), load["mci"].to_list())}
 
 
-def load_empresa(_mci: int, _data_ant: date, _data_atual: date, limite: int) -> pd.DataFrame:
+def load_empresa(_mci: int, _data_ant: date, _data_atual: date) -> pd.DataFrame:
     return engine.query(
         sql=f"""
             SELECT
@@ -122,7 +121,6 @@ def load_empresa(_mci: int, _data_ant: date, _data_atual: date, limite: int) -> 
             ORDER BY
                 CAST(t5.CD_CLI_ACNT AS INTEGER),
                 DATA DESC
-            FETCH FIRST {limite} ROWS ONLY
         """,
         show_spinner=False,
         ttl=0,
@@ -182,17 +180,16 @@ if st.session_state["montar"]:
 
         data_ant: date = (st.session_state["data"].replace(day=1) - timedelta(days=1)).replace(day=28)
 
-        base: pd.DataFrame = load_empresa(mci, data_ant, st.session_state["data"], st.session_state["quantidade"]) \
+        base: pd.DataFrame = load_empresa(mci, data_ant, st.session_state["data"]) \
             .rename(columns={"investidor": "INVESTIDOR", "cpf_cnpj": "CPF_CNPJ", "qtd": "QTD"})
 
         if base.empty:
             st.toast("**Não há dados para montar a declaração...**", icon=":material/warning:")
             st.stop()
 
-        # base["pk"] = f"{base['mci']}-{base['cod_titulo']}-{base['custodiante']}"
-        # base = base.groupby("pk").first()
+        base["pk"] = base.apply(lambda x: f"{x['mci']}-{x['cod_titulo']}-{x['custodiante']}", axis=1)
+        base = base.groupby("pk").first()
         base = base[base["QTD"].ne(0)]
-
         base.drop(["mci", "cod_titulo", "custodiante"], axis=1, inplace=True)
 
         if len(base["sigla"].unique()) == 1:
@@ -204,13 +201,14 @@ if st.session_state["montar"]:
                                                             "sigla": "first", "QTD": "sum"})
 
         base = base.sort_values(["QTD"], ascending=False)
-        # base.reset_index(inplace=True)
+        base.reset_index(drop=True, inplace=True)
+        base = base[0:st.session_state["quantidade"]]
 
         # definindo estilos que serão usados na carta
         header: ParagraphStyle = ParagraphStyle("header", fontName="Vera", fontSize=11, textColor=colors.black,
-                                                aligment=TA_RIGHT)
+                                                aligment="right")
         content: ParagraphStyle = ParagraphStyle("content", fontName="Vera", fontSize=11, textColor=colors.black,
-                                                 aligment=TA_JUSTIFY)
+                                                 aligment="justify")
         footer: ParagraphStyle = ParagraphStyle("header", fontName="Vera", fontSize=8, textColor=colors.black)
 
         mci_empresa, nome_empresa, cnpj_empresa = load_cadastro(mci)

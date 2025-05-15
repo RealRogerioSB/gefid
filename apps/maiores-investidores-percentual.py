@@ -11,7 +11,6 @@ import pandas as pd
 import reportlab.rl_config
 import streamlit as st
 from reportlab.lib import colors
-from reportlab.lib.enums import TA_JUSTIFY, TA_RIGHT
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle
 from reportlab.pdfbase import pdfmetrics
@@ -195,8 +194,8 @@ if st.session_state["montar"]:
             st.toast("**Não há dados para montar a declaração...**", icon=":material/error:")
             st.stop()
 
-        # base["pk"] = f"{base['mci']}-{base['cod_titulo']}-{base['custodiante']}"
-        # base = base.groupby("pk").first()
+        base["pk"] = base.apply(lambda x: f"{x['mci']}-{x['cod_titulo']}-{x['custodiante']}", axis=1)
+        base = base.groupby("pk").first()
         base = base[base["QTD"].ne(0)]
         base["%"] = np.trunc(base["QTD"] / sum(base["QTD"]) * 100)
 
@@ -212,20 +211,16 @@ if st.session_state["montar"]:
 
         base = base.sort_values(["QTD"], ascending=False)
         base = base[base["%"].ge(st.session_state["percentual"])]
-        # base.reset_index(inplace=True)
+        # base.reset_index(drop=True, inplace=True)
 
         # definindo estilos que serão usados na carta
         header: ParagraphStyle = ParagraphStyle("header", fontName="Vera", fontSize=11, textColor=colors.black,
-                                                aligment=TA_RIGHT)
+                                                aligment="right")
         content: ParagraphStyle = ParagraphStyle("content", fontName="Vera", fontSize=11, textColor=colors.black,
-                                                 aligment=TA_JUSTIFY)
+                                                 aligment="justify")
         footer: ParagraphStyle = ParagraphStyle("header", fontName="Vera", fontSize=8, textColor=colors.black)
 
-        cadastro = load_cadastro(mci)
-
-        mci_empresa: str = cadastro[0]
-        nome_empresa: str = cadastro[1]
-        cnpj_empresa: str = cadastro[2]
+        mci_empresa, nome_empresa, cnpj_empresa = load_cadastro(mci)
 
         elements = [
             Image(filename="static/imagens/bb.jpg", width=300, height=38),
