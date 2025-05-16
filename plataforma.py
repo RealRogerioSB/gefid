@@ -4,17 +4,16 @@ st.set_page_config(
     page_title="Intranet DIOPE GEFID",
     page_icon="img/bbfav.svg",
     layout="wide",
+    initial_sidebar_state="expanded",
 )
 
 st.logo(image="img/bb_png.png", size="large", link="https://gefid-aplic-1.intranet.bb.com.br/")
 
-st.markdown(
-    body="""<style>
-        [data-testid='stHeader'] {display: none;}
-        #MainMenu {visibility: hidden} footer {visibility: hidden}
-    </style>""",
-    unsafe_allow_html=True
-)
+st.markdown("""<style>
+    [data-testid='stHeader'] {display: none;}
+    [data-testid='collapsedControl'] {display: none;}
+    #MainMenu {visibility: hidden} footer {visibility: hidden}
+</style>""", unsafe_allow_html=True)
 
 st.navigation(
     pages={
@@ -48,9 +47,9 @@ st.navigation(
             st.Page(page="apps/acoes-tesouraria.py", title="Ações em Tesouraria", icon=":material/bar_chart_4_bars:"),
             st.Page(page="apps/cancela-cepac.py", title="Cancelamento de CEPAC", icon=":material/hide_source:"),
             st.Page(page="apps/maiores-investidores.py", title="Maiores Investidores", icon=":material/editor_choice:"),
-            st.Page(page="apps/maiores-investidores-percentual.py", title="Maiores Investidores Percentual",
+            st.Page(page="apps/maiores-investidores-percentuais.py", title="Maiores Investidores Percentuais",
                     icon=":material/workspace_premium:"),
         ]
     },
-    expanded=True
+    expanded=True,
 ).run()
