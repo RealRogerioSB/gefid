@@ -5,9 +5,7 @@ from unidecode import unidecode
 
 engine: SQLConnection = st.connection(name="DB2", type=SQLConnection)
 
-st.subheader(":material/wysiwyg: Extrato de Movimentação")
-
-st.markdown("##### Extrato de Movimentação de Ativos dos últimos 12 meses")
+message = st.empty()
 
 stmt_load_nome: str = """
     SELECT
@@ -116,6 +114,10 @@ def load_tipo(_tipo: int) -> pd.DataFrame:
 
 
 with st.columns(2)[0]:
+    st.subheader(":material/wysiwyg: Extrato de Movimentação")
+
+    st.markdown("##### Extrato de Movimentação de Ativos dos últimos 12 meses")
+
     kv: dict[str, int] = load_client()
 
     st.selectbox(label="**Empresa:**", options=kv.keys(), key="empresa")
@@ -137,7 +139,7 @@ if st.session_state["search"]:
 
     if not any([st.session_state["nome_investidor"], st.session_state["mci_investidor"],
                 st.session_state["cpf_cnpj_investidor"]]):
-        st.toast("**Deve preencher ao menos um dos campos abaixo**", icon=":material/warning:")
+        message.warning("**Deve preencher ao menos um dos campos abaixo**", icon=":material/warning:", width=600)
         st.stop()
 
     with st.spinner("**:material/hourglass: Preparando os dados para exibir, aguarde...**", show_time=True):
@@ -171,7 +173,7 @@ if st.session_state["search"]:
         tipos: list[str] = []
 
         if extrato.empty:
-            st.toast("**Não ocorreram movimentações nos últimos 12 meses**", icon=":material/error:")
+            message.info("**Não ocorreram movimentações nos últimos 12 meses**", icon=":material/error:", width=600)
             st.stop()
 
         for _extrato in extratos:

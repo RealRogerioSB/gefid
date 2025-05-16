@@ -5,7 +5,7 @@ from streamlit.connections import SQLConnection
 
 engine: SQLConnection = st.connection(name="DB2", type=SQLConnection)
 
-st.subheader(":material/siren: Resolução CVM 160")
+message = st.empty()
 
 
 @st.cache_data(show_spinner="**Preparando a listagem da empresa, aguarde...**")
@@ -24,6 +24,8 @@ def load_active(active: str) -> dict[str, int]:
 
 
 with st.columns(2)[0]:
+    st.subheader(":material/siren: Resolução CVM 160")
+
     st.radio(label="**Situação de Clientes:**", options=["ativos", "inativos"], key="option")
 
     kv: dict[str, int] = load_active("null") if st.session_state["option"] == "ativos" else load_active("not null")
@@ -110,7 +112,7 @@ if st.session_state["enviar"]:
         )
 
         if base.empty:
-            st.toast(body="**Não há dados para enviar...**", icon=":material/error:")
+            message.info(body="**Não há dados para enviar...**", icon=":material/error:", width=600)
 
         else:
             base["pk"] = base.apply(lambda x: f"{x['cpf_cnpj']}-{x['cod_titulo']}", axis=1)
@@ -118,7 +120,7 @@ if st.session_state["enviar"]:
             base = base[base["cpf_cnpj"].ne(60777661000150) & base["cpf_cnpj"].gt(0) & base["quantidade"].ne(0)]
 
             if base.empty:
-                st.toast("**Não há dados para enviar...**", icon=":material/error:")
+                message.info("**Não há dados para enviar...**", icon=":material/error:", width=600)
 
             else:
                 base.reset_index(drop=True, inplace=True)
@@ -140,5 +142,5 @@ if st.session_state["enviar"]:
                     with open(trailer, "a") as f:
                         f.write(f"9 {len(pega) + 1:0>19}{pega['quantidade'].sum():0>17}            ")
 
-                st.toast(body="**Criação de TXT gerada com sucesso, está na pasta específica**",
-                         icon=":material/check_circle:")
+                message.info("**Criação de TXT gerada com sucesso, está na pasta específica**",
+                             icon=":material/check_circle:", width=600)

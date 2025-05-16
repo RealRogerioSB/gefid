@@ -16,7 +16,7 @@ locale.setlocale(locale.LC_ALL, "pt_BR.UTF-8")
 
 engine: SQLConnection = st.connection(name="DB2", type=SQLConnection)
 
-st.subheader(":material/published_with_changes: Autorregulação BB")
+message = st.empty()
 
 
 def load_evid(_data_pos: date) -> pd.DataFrame:
@@ -43,6 +43,8 @@ def load_evid(_data_pos: date) -> pd.DataFrame:
         params=dict(data_posterior=_data_pos),
     )
 
+
+st.subheader(":material/published_with_changes: Autorregulação BB")
 
 reportlab.rl_config.warnOnMissingFontGlyphs = 0
 
@@ -91,7 +93,7 @@ if st.session_state["btn_ev"]:
     ]
 
     if dfevid.empty:
-        st.toast("**Não consta nada na data estabelecida...**", icon=":material/error:")
+        message.info("**Não consta nada na data estabelecida...**", icon=":material/error:", width=600)
         st.stop()
 
     last_day: date = data_pos - timedelta(days=1)
@@ -133,7 +135,8 @@ if st.session_state["btn_ev"]:
 
     cnv.save()
 
-    st.toast("**Arquivo PDF gerado com sucesso e enviado na pasta específica**", icon=":material/check_circle:")
+    message.info("**Arquivo PDF gerado com sucesso e enviado na pasta específica**",
+                 icon=":material/check_circle:", width=600)
 
 if st.session_state["btn_ac"]:
     data_pos: date = date(
@@ -143,7 +146,7 @@ if st.session_state["btn_ac"]:
     )
 
     if not st.session_state["up_base_aci"]:
-        st.toast("**Ainda não baixou o arquivo 738 correspondente...**", icon=":material/error:")
+        message.warning("**Ainda não baixou o arquivo 738 correspondente...**", icon=":material/warning:", width=600)
         st.stop()
 
     with st.spinner("**:material/hourglass: Preparando os dados, aguarde...**", show_time=True):
@@ -295,7 +298,7 @@ if st.session_state["btn_ac"]:
     
         arquivo_base_acionaria()
     
-        st.toast("**Geração de Excel feita com sucesso!**", icon=":material/check_circle:")
+        message.info("**Geração de Excel feita com sucesso!**", icon=":material/check_circle:", width=600)
 
 if st.session_state["btn_au"]:
     data_pos = date(
@@ -305,7 +308,7 @@ if st.session_state["btn_au"]:
     ) - timedelta(days=1)
 
     if not all([st.session_state["up_base_738"], st.session_state["up_base_siri"]]):
-        st.toast("**Não subiu os 2 arquivos exigidos...**", icon=":material/warning:")
+        message.warning("**Não subiu os 2 arquivos exigidos...**", icon=":material/warning:", width=600)
         st.stop()
 
     with st.spinner("**:material/hourglass: Preparando os dados, aguarde...**", show_time=True):
@@ -525,4 +528,4 @@ if st.session_state["btn_au"]:
     
         arquivo_siri()
     
-        st.toast("**Geração de Excel feita com sucesso!**", icon=":material/check_circle:")
+        message.info("**Geração de Excel feita com sucesso!**", icon=":material/check_circle:", width=600)

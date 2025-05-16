@@ -3,6 +3,8 @@ from datetime import date
 import pandas as pd
 import streamlit as st
 
+message = st.empty()
+
 st.subheader(":material/diversity_3: EDIV")
 
 st.markdown("#### Separação do EDIV por processos")
@@ -16,7 +18,7 @@ col2.file_uploader(label="**Arquivo IRMCI:**", key="up_irmci")
 
 if st.button(label="**:material/content_cut: Separar Processos**", type="primary"):
     if not all([st.session_state["up_ediv"], st.session_state["up_irmci"]]):
-        st.toast("**Precisa de 2 arquivos para importar...**", icon=":material/warning:")
+        message.warning("**Precisa de 2 arquivos para importar...**", icon=":material/warning:", width=600)
         st.stop()
 
     with st.spinner("**:material/hourglass: Preparando os dados para exportar, aguarde...**", show_time=True):
@@ -185,4 +187,4 @@ if st.button(label="**:material/content_cut: Separar Processos**", type="primary
             writer.close()
             workbook.close()
 
-            st.toast("**Feito! O arquivo já está na pasta específica**", icon=":material/check_circle:")
+            message.info("**Feito! O arquivo já está na pasta específica**", icon=":material/check_circle:", width=600)

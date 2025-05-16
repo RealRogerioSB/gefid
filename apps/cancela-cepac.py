@@ -1,3 +1,4 @@
+import os
 import smtplib
 from datetime import date
 from email import encoders
@@ -9,7 +10,6 @@ import pandas as pd
 import reportlab.rl_config
 import streamlit as st
 from reportlab.lib import colors
-from reportlab.lib.enums import TA_JUSTIFY, TA_RIGHT
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle
 from reportlab.pdfbase import pdfmetrics
@@ -19,59 +19,37 @@ from streamlit.connections import SQLConnection
 
 engine: SQLConnection = st.connection(name="DB2", type=SQLConnection)
 
-st.subheader(":material/hide_source: Cancelamento de CEPAC")
+message = st.empty()
 
 
-def load_extract_mci(mci: int, active: int) -> pd.DataFrame:
-    return engine.query(
-        sql="""
-            SELECT CAST(t1.DT_MVTC AS DATE) AS DATA_MVTC,
-                   CAST(t1.QT_TIT_MVTD AS INT) AS MVT,
-                   CAST(t1.QT_TIT_ATU AS INT) AS SALDO
-            FROM DB2AEB.MVTC_DIAR_PSC t1
-            WHERE t1.CD_CLI_EMT = 906535030 
-              AND t1.CD_CLI_ACNT = :mci
-              AND t1.CD_CLI_CSTD = 903485186
-              AND t1.CD_TIP_TIT = :active
-            ORDER BY t1.DT_MVTC
-        """,
-        show_spinner=False,
-        ttl=0,
-        params=dict(mci=mci, active=active),
-    )
-
-
-def load_extract_cnpj(cnpj: int, active: int) -> pd.DataFrame:
-    return engine.query(
-        sql="""
-            SELECT CAST(t1.DT_MVTC AS DATE) AS DATA_MVTC,
-                   CAST(t1.QT_TIT_MVTD AS INT) AS MVT,
-                   CAST(t1.QT_TIT_ATU AS INT) AS SALDO
-            FROM DB2AEB.MVTC_DIAR_PSC t1
-                    INNER JOIN DB2MCI.CLIENTE t2
-                            ON t2.COD = t1.CD_CLI_ACNT
-            WHERE t1.CD_CLI_EMT = 906535030 
-              AND t2.COD_CPF_CGC = :cnpj
-              AND t1.CD_CLI_CSTD = 903485186
-              AND t1.CD_TIP_TIT = :active
-            ORDER BY t1.DT_MVTC
-        """,
-        show_spinner=False,
-        ttl=0,
-        params=dict(cnpj=cnpj, active=active),
-    )
-
-
-def load_cadastro(field: str, value: int) -> pd.DataFrame:
+def load_extract(join: str, field: str, value: int, active: int) -> pd.DataFrame:
     return engine.query(
         sql=f"""
-            SELECT
-                t1.COD AS MCI_INVESTIDOR,
-                STRIP(t1.NOM) AS INVESTIDOR,
-                CASE
-                    WHEN t1.COD_TIPO = 2 THEN LPAD(t1.COD_CPF_CGC, 14, '0')
-                    ELSE LPAD(t1.COD_CPF_CGC, 11, '0')
-                END AS CPF_CNPJ
+            SELECT CAST(t1.DT_MVTC AS DATE)    AS DATA_MVTC,
+                   CAST(t1.QT_TIT_MVTD AS INT) AS MVT,
+                   CAST(t1.QT_TIT_ATU AS INT)  AS SALDO
+            FROM DB2AEB.MVTC_DIAR_PSC t1{join}
+            WHERE t1.CD_CLI_EMT = 906535030
+              AND {field} = :value
+              AND t1.CD_CLI_CSTD = 903485186
+              AND t1.CD_TIP_TIT = :active
+            ORDER BY CAST(t1.DT_MVTC AS DATE)
+            """,
+        show_spinner=False,
+        ttl=0,
+        params=dict(value=value, active=active),
+    )
+
+
+def load_cadastro(field: str, value: int) -> tuple[str, ...]:
+    load: pd.DataFrame = engine.query(
+        sql=f"""
+            SELECT t1.COD AS MCI,
+                   STRIP(t1.NOM) AS INVESTIDOR,
+                   CASE
+                       WHEN t1.COD_TIPO = 2 THEN LPAD(t1.COD_CPF_CGC, 14, '0')
+                       ELSE LPAD(t1.COD_CPF_CGC, 11, '0')
+                   END AS CPF_CNPJ
             FROM DB2MCI.CLIENTE t1
             WHERE t1.{field.upper()} = :value
         """,
@@ -79,7 +57,73 @@ def load_cadastro(field: str, value: int) -> pd.DataFrame:
         ttl=0,
         params=dict(value=value),
     )
+    return str(load["mci"].iloc[0]), load["investidor"].iloc[0], load["cpf_cnpj"].iloc[0]
 
+
+@st.dialog("Despachar E-mail")
+def send_mail() -> None:
+    st.text_input("**Para:**", key="to_addr", help="Mais e-mail, separa com a vírgula", icon=":material/mail:")
+    st.text_input("**Cc:**", key="cc_addr", help="Mais e-mail, separa com a vírgula", icon=":material/mail:")
+    st.columns(3)[1].button("**Despachar**", key="despachar", type="primary", icon=":material/send:",
+                            use_container_width=True)
+
+    if st.session_state["despachar"]:
+        if not any([st.session_state["to_addr"], st.session_state["cc_addr"]]):
+            st.stop()
+
+        msg = MIMEMultipart()
+        msg["From"] = "aescriturais@bb.com.br"
+        msg["To"] = st.session_state["to_addr"]
+        msg["Cc"] = st.session_state["cc_addr"]
+        msg["Subject"] = "DECLARAÇÃO DE MAIORES INVESTIDORES"
+        msg.attach(MIMEText(
+            """<html><head></head><body>
+            <br><br>
+            <div>
+                Prezados(as),<br><br>
+                Segue <b> em anexo </b> Declaração de Maiores Investidores.
+            </div><br><br></body></html>""",
+            "html"
+        ))
+
+        part = MIMEBase("application", "octet-stream")
+
+        with open(f"static/escriturais/@deletar/{date.today().year}-{last_protocol}-"
+                  f"CancelamentoCEPAC-Carta-DAF{st.session_state['carta_daf']}.pdf", "rb") as file1:
+            payload: bytes = file1.read()
+
+        part.set_payload(payload)
+
+        encoders.encode_base64(part)
+
+        part.add_header("Content-Disposition", f"attachment; filename='cancelamento_cepac.pdf'")
+
+        msg.attach(part)
+
+        with smtplib.SMTP("smtp.bb.com.br", 25) as server:
+            server.set_debuglevel(1)
+
+            try:
+                server.sendmail(
+                    from_addr="aescriturais@bb.com.br",
+                    to_addrs=st.session_state["to_addr"] + st.session_state["cc_addr"],
+                    msg=msg.as_string()
+                )
+
+            except (smtplib.SMTPConnectError, smtplib.SMTPServerDisconnected):
+                message.error("**Houve falha ao enviar e-mail**", icon=":material/error:", width=600)
+                st.stop()
+
+        message.info("**Declaração enviada com sucesso!**", icon=":material/check_circle:", width=600)
+
+        with open("static/arquivos/protocolador/protocolador.txt", "a") as save_protocol:
+            save_protocol.write(f"{date.today().year}-{last_protocol}-CancelamentoCEPAC-Carta-DAF"
+                                f"{st.session_state['carta_daf']}")
+
+        st.rerun()
+
+
+st.subheader(":material/hide_source: Cancelamento de CEPAC")
 
 with open("static/arquivos/protocolador/protocolador.txt") as f:
     last_protocol: int = int([x.strip().split("-") for x in f.readlines()][-1][1]) + 1
@@ -96,48 +140,51 @@ col3.text_input("**Processo SEI:**", key="processo_sei")
 st.markdown("##### Preencher MCI ou CNPJ da empresa detentora do papel")
 
 col1, col2, _ = st.columns([1, 1, 3])
-col1.number_input("**MCI da Empresa:**", min_value=0, max_value=9999999999, key="mci_empresa")
-col2.number_input("**CNPJ da Empresa:**", min_value=0, max_value=99999999999999, key="cnpj_empresa")
+col1.number_input("**MCI da Empresa:**", min_value=0, max_value=9999999999, key="mci_client")
+col2.number_input("**CNPJ da Empresa:**", min_value=0, max_value=99999999999999, key="cnpj_client")
 
 st.markdown("##### Preencher o tipo do papel")
 st.radio("**Ativo:**", options=["Água Branca (CAB)", "Água Espraiada (CPC)", "Faria Lima (CFL)"], key="tipo_papel")
 
-st.button("**Montar Declaração**", key="montar", type="primary", icon=":material/picture_as_pdf:")
-
-with st.columns(2)[0]:
-    st.text_input("**De:**", value="aescriturais@bb.com.br", key="from_addr", disabled=True)
-    st.text_input("**Para:**", key="to_addrs", help="Mais e-mails deve colocar vírgula")
-    st.text_input("**Cc:**", key="cc_addrs", help="Mais e-mails deve colocar vírgula")
-    st.button("**Enviar**", key="enviar", icon=":material/send:")
+col1, col2, *_ = st.columns(6)
+col1.button("**Montar Declaração**", key="montar", type="primary",
+            icon=":material/picture_as_pdf:", use_container_width=True)
+col2.button("**Preparar E-mail**", key="open_mail", type="primary",
+            icon=":material/mail:", use_container_width=True)
 
 if st.session_state["montar"]:
-    if not any([st.session_state["mci_empresa"], st.session_state["cnpj_empresa"]]):
-        st.toast("**Deve preencher um dos campos de MCI ou CNPJ...**", icon=":material/warning:")
+    if all([st.session_state["mci_client"], st.session_state["cnpj_client"]]):
+        message.warning("**Só pode preencher um dos campos MCI ou CNPJ e não dos dois...**",
+                        icon=":material/warning:", width=600)
         st.stop()
 
-    if all([st.session_state["mci_empresa"], st.session_state["cnpj_empresa"]]):
-        st.toast("**Só pode preencher um dos campos MCI ou CNPJ e não dos dois...**", icon=":material/warning:")
+    if not any([st.session_state["mci_client"], st.session_state["cnpj_client"]]):
+        message.warning("**Deve preencher um dos campos de MCI ou CNPJ...**",
+                        icon=":material/warning:", width=600)
         st.stop()
 
     with st.spinner("**:material/hourglass: Preparando para montar PDF, aguarde...**", show_time=True):
         ativo: int = 123 if st.session_state["tipo_papel"] == "Água Branca (CAB)" else 55 \
             if st.session_state["tipo_papel"] == "Água Espraiada (CPC)" else 56
 
-        extract: pd.DataFrame = load_extract_mci(st.session_state["mci_empresa"], ativo) \
-            if st.session_state["mci_empresa"] else load_extract_cnpj(st.session_state["cnpj_empresa"], ativo)
+        extract: pd.DataFrame = load_extract(
+            join="" if st.session_state["mci_client"] else " INNER JOIN DB2MCI.CLIENTE t2 ON t2.COD = t1.CD_CLI_ACNT",
+            field="t1.CD_CLI_ACNT" if st.session_state["mci_client"] else "t2.COD_CPF_CGC",
+            value=st.session_state["mci_client"] if st.session_state["mci_client"] else st.session_state["cnpj_client"],
+            active=ativo
+        )
 
         extract["data_mvtc"] = pd.to_datetime(extract["data_mvtc"]).dt.strftime("%d.%m.%Y")
 
-        cadastro: pd.DataFrame = load_cadastro("cod", st.session_state["mci_empresa"]) \
-            if st.session_state["mci_empresa"] else load_cadastro("cod_cpf_cgc", st.session_state["cnpj_empresa"])
-
-        mci_investidor: int = cadastro["mci_investidor"].iloc[0]
-        investidor: str = cadastro["investidor"].iloc[0]
-        cpf_cnpj: str = cadastro["cpf_cnpj"].iloc[0]
-        
         if extract.empty:
-            st.toast("**Empresa e ativo selecionados não apresentaram movimentações**", icon=":material/error:")
+            message.info("**Empresa e ativo selecionados não apresentaram movimentações**",
+                         icon=":material/error:", width=600)
             st.stop()
+
+        mci_investidor, investidor, cpf_cnpj = load_cadastro(
+            field="cod" if st.session_state["mci_client"] else "cod_cpf_cgc",
+            value=st.session_state["mci_client"] if st.session_state["mci_client"] else st.session_state["cnpj_client"],
+        )
 
         reportlab.rl_config.warnOnMissingFontGlyphs = 0
 
@@ -148,9 +195,9 @@ if st.session_state["montar"]:
 
         # definindo estilos que serão usados na carta
         header: ParagraphStyle = ParagraphStyle(name="header", fontName="Vera", fontSize=11,
-                                                textColor=colors.black, aligment=TA_RIGHT)
+                                                textColor=colors.black, aligment="right")
         content: ParagraphStyle = ParagraphStyle(name="content", fontName="Vera", fontSize=11,
-                                                 textColor=colors.black, aligment=TA_JUSTIFY)
+                                                 textColor=colors.black, aligment="justify")
         footer: ParagraphStyle = ParagraphStyle(name="header", fontName="Vera", fontSize=8,
                                                 textColor=colors.black)
 
@@ -192,7 +239,7 @@ if st.session_state["montar"]:
         elements.append(t)
         elements.append(Spacer(30, 30))
 
-        elements.append(Paragraph("_" * 129, footer))
+        elements.append(Paragraph("_" * 109, footer))
         elements.append(Paragraph("DIRETORIA OPERAÇÕES - DIOPE", footer))
         elements.append(Paragraph("Gerência Executiva de Negócios em Serviços Fiduciários - Gerência de "
                                   "Escrituração e Trustee", footer))
@@ -208,53 +255,13 @@ if st.session_state["montar"]:
         )
         pdf.build(elements)
 
-        st.toast("**Declaração de Cancelamento de CEPAC pronta para enviar e-mail**", icon=":material/check_circle:")
+        message.info("**Declaração de Cancelamento de CEPAC pronta para enviar e-mail**",
+                     icon=":material/check_circle:", width=600)
 
-if st.session_state["enviar"]:
-    if not any([st.session_state["to_addrs"], st.session_state["cc_addrs"]]):
-        st.toast("**Deve preencher e-mails...**", icon=":material/warning:")
-        st.stop()
+if st.session_state["open_mail"]:
+    if os.path.exists(f"static/escriturais/@deletar/{date.today().year}-{last_protocol}-CancelamentoCEPAC-Carta-DAF"
+                      f"{st.session_state['carta_daf']}.pdf"):
+        send_mail()
 
-    msgcp = MIMEMultipart()
-    msgcp["Subject"] = "DECLARAÇÃO CANCELAMENTO DE CEPAC"
-    msgcp["From"] = st.session_state["from_addr"]
-    msgcp["To"] = st.session_state["to_addrs"]
-    msgcp["Cc"] = st.session_state["cc_addrs"]
-    msgcp.attach(MIMEText(
-        """<html><head></head><body>
-        <br><br>
-        <div>Prezados,<br><br>
-        Segue <b>em anexo</b> Declaração de Cancelamento de CEPAC</div>
-        <br><br>
-        </body></html>""",
-        "html"
-    ))
-
-    part = MIMEBase("application", "octet-stream")
-    part.set_payload(open(f"static/escriturais/@deletar/{date.today().year}-{last_protocol}-CancelamentoCEPAC-Carta"
-                          f"-DAF{st.session_state['carta_daf']}.pdf", "rb").read())
-
-    encoders.encode_base64(part)
-
-    part.add_header("Content-Disposition", "attachment; filename='cancelamentocepac.pdf'")
-
-    msgcp.attach(part)
-
-    with smtplib.SMTP("smtp.bb.com.br") as server:
-        server.set_debuglevel(1)
-
-        try:
-            server.sendmail(st.session_state["from_email"],
-                            st.session_state["to_email"] + st.session_state["cc_email"],
-                            msgcp.as_string())
-
-        except (smtplib.SMTPConnectError, smtplib.SMTPServerDisconnected):
-            st.toast("**Houve falha ao enviar e-mails...**", icon=":material/warning:")
-
-        else:
-            with open("static/arquivos/protocolador/protocolador.txt", "a") as save_protocol:
-                save_protocol.write("\n")
-                save_protocol.write(f"{date.today().year}-{last_protocol}-CancelamentoCEPAC-Carta-"
-                                    f"DAF{st.session_state['carta_daf']}")
-
-            st.toast("**Declaração de Cancelamento de CEPAC gerada com sucesso!**", icon=":material/check_circle:")
+    else:
+        message.warning("Ainda não, primeiro clicar Montar Declaração...", icon=":material/warning:", width=600)

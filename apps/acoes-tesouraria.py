@@ -1,4 +1,5 @@
 import locale
+import os
 import smtplib
 from datetime import date, timedelta
 from email import encoders
@@ -20,8 +21,7 @@ locale.setlocale(locale.LC_ALL, "pt_BR.UTF-8")
 
 engine: SQLConnection = st.connection(name="DB2", type=SQLConnection)
 
-if "addr_mail" not in st.session_state:
-    st.session_state["addr_mail"] = None
+message = st.empty()
 
 
 @st.cache_data(show_spinner="**:material/hourglass: Preparando a listagem da empresa, aguarde...**")
@@ -122,91 +122,70 @@ def load_empresa(_mci: int, _data_ant: date, _data_atual: date) -> pd.DataFrame:
     )
 
 
-@st.dialog("Enviar a declaração pelo e-mail")
+@st.dialog("Despachar E-mail")
 def send_mail() -> None:
-    from_addr = "aescriturais@bb.com.br"
     st.text_input("**Para:**", key="to_addr", help="Mais e-mails, coloca a vírgula", icon=":material/mail:")
     st.text_input("**Cc:**", key="cc_addr", help="Mais e-mails, coloca a vírgula", icon=":material/mail:")
-    st.button("Enviar", key="send_mail", type="primary", icon=":material/mail:")
+    st.columns(3)[1].button("Despachar", key="despachar", type="primary", icon=":material/send:",
+                            use_container_width=True)
 
-    if st.session_state["send_mail"]:
-        if any([st.session_state["to_addr"], st.session_state["cc_addr"]]):
-            st.session_state["addr_mail"] = {
-                "from": from_addr,
-                "to": st.session_state["to_addr"],
-                "cc": st.session_state["cc_addr"],
-            }
-            prepare_mail()
-            st.rerun()
+    if st.session_state["despachar"]:
+        if not any([st.session_state["to_addr"], st.session_state["cc_addr"]]):
+            st.stop()
 
-        else:
-            st.toast("**É obrigatório preencher um dos campos de e-mail**", icon=":material/warning:")
+        msg: MIMEMultipart = MIMEMultipart()
+        msg["From"] = "aescriturais@bb.com.br"
+        msg["To"] = st.session_state["to_addr"]
+        msg["Cc"] = st.session_state["cc_addr"]
+        msg["Subject"] = "DECLARAÇÃO AÇÕES EM TESOURARIA"
+        msg.attach(MIMEText(
+            """<html><head></head><body><br><br>
+            <div>
+                Prezados,<br><br>
+                Segue <b>em anexo</b> Declaração de Ações em Tesouraria
+            </div>
+            <br><br></body></html>""",
+            "html"
+        ))
 
+        part: MIMEBase = MIMEBase("application", "octet-stream")
 
-def prepare_mail() -> None:
-    if not st.session_state["addr_mail"]:
-        st.toast("**É obrigatório preencher um dos campos de e-mail**", icon=":material/warning:")
-        st.stop()
+        with open(f"static/escriturais/@deletar/AcoesEmTesouraria-{st.session_state['empresa'].replace('/', '.')} - "
+                  f"{st.session_state['data']:%d.%m.%Y}.pdf", "rb") as file:
+            payload: bytes = file.read()
 
-    msg: MIMEMultipart = MIMEMultipart()
-    msg["From"] = st.session_state["addr_mail"]["from"]
-    msg["To"] = st.session_state["addr_mail"]["to"]
-    msg["Cc"] = st.session_state["addr_mail"]["cc"]
-    msg["Subject"] = "DECLARAÇÃO AÇÕES EM TESOURARIA"
-    msg.attach(MIMEText(
-        """<html>
-                <head></head>
-                <body>
-                    <br><br>
-                    <div>Prezados,<br><br>
-                    Segue <b>em anexo</b> Declaração de Ações em Tesouraria</div>
-                    <br><br>
-                </body>
-            </html>""",
-        "html"
-    ))
+        part.set_payload(payload)
 
-    part: MIMEBase = MIMEBase("application", "octet-stream")
+        encoders.encode_base64(part)
 
-    with open(f"static/escriturais/@deletar/AcoesEmTesouraria-{st.session_state['empresa']} - "
-              f"{st.session_state['data']:%d.%m.%Y}.pdf", "rb") as file:
-        payload: bytes = file.read()
+        part.add_header(
+            "Content-Disposition",
+            "attachment; filename='acoesemtesouraria.pdf'"
+        )
 
-    part.set_payload(payload)
+        msg.attach(part)
 
-    encoders.encode_base64(part)
+        with smtplib.SMTP("smtp.bb.com.br") as server:
+            server.set_debuglevel(1)
+            try:
+                server.sendmail(
+                    from_addr="aescriturais@bb.com.br",
+                    to_addrs=st.session_state["to_addr"] + st.session_state["cc_addr"],
+                    msg=msg.as_string()
+                )
 
-    part.add_header(
-        "Content-Disposition",
-        "attachment; filename='acoesemtesouraria.pdf'"
-    )
+            except (SMTPConnectError, SMTPServerDisconnected):
+                message.error("**Falha ao conectar o serviço de e-mail...**", icon=":material/error:", width=600)
 
-    msg.attach(part)
+            else:
+                with open("static/arquivos/protocolador/protocolador.txt", "a") as save_protocol:
+                    save_protocol.write("\n")
+                    save_protocol.write(f"{date.today().year}-{last_protocol}-Protocolo Ações em Tesouraria-"
+                                        f"{st.session_state['empresa']}")
 
-    with smtplib.SMTP("smtp.bb.com.br") as server:
-        server.set_debuglevel(1)
-        try:
-            server.sendmail(
-                from_addr=st.session_state["addr_mail"]["from"],
-                to_addrs=st.session_state["addr_mail"]["to"] + st.session_state["addr_mail"]["cc"],
-                msg=msg.as_string()
-            )
+                st.session_state["addr_mail"] = None
 
-        except SMTPConnectError:
-            st.toast("**Falha ao conectar o serviço de e-mail...**", icon=":material/error:")
-
-        except SMTPServerDisconnected:
-            st.toast("**Falha à tentativa de conexão de e-mail...**", icon=":material/error:")
-
-        else:
-            with open("static/arquivos/protocolador/protocolador.txt", "a") as save_protocol:
-                save_protocol.write("\n")
-                save_protocol.write(f"{date.today().year}-{last_protocol}-Protocolo Ações em Tesouraria-"
-                                    f"{st.session_state['empresa']}")
-
-            st.session_state["addr_mail"] = None
-
-            st.toast("**E-mail enviado com sucesso!**", icon=":material/check_circle:")
+                message.info("**E-mail enviado com sucesso!**", icon=":material/check_circle:", width=600)
 
 
 st.markdown("##### :material/bar_chart_4_bars: Declaração de Ações em Tesouraria")
@@ -225,9 +204,10 @@ with st.columns(2)[0]:
 
     st.columns(3)[0].date_input("**Data:**", value=date.today(), key="data", format="DD/MM/YYYY")
 
-st.button("**Montar Declaração**", key="montar", type="primary", icon=":material/picture_as_pdf:")
-
-st.caption(st.session_state["addr_mail"])
+col1, col2, *_ = st.columns(6)
+col1.button("**Montar Declaração**", key="montar", type="primary",
+            icon=":material/picture_as_pdf:", use_container_width=True)
+col2.button("**Preparar E-mail**", key="open_mail", type="primary", icon=":material/mail:", use_container_width=True)
 
 if st.session_state["montar"]:
     with st.spinner("**:material/hourglass: Preparando os dados para a declaração, aguarde...**", show_time=True):
@@ -236,7 +216,8 @@ if st.session_state["montar"]:
         office: pd.DataFrame = load_empresa(mci, data_ant, st.session_state["data"])
 
         if office.empty:
-            st.toast("**Não identificamos ações em tesouraria para a referida empresa**", icon=":material/error:")
+            message.info("**Não identificamos ações em tesouraria para a referida empresa**",
+                         icon=":material/error:", width=600)
 
         else:
             office = office[office["quantidade"].ne(0)]
@@ -249,8 +230,8 @@ if st.session_state["montar"]:
             pdfmetrics.registerFont(TTFont("VeraIt", "VeraIt.ttf"))
 
             cnv: canvas.Canvas = canvas.Canvas(
-                filename=f"static/escriturais/@deletar/AcoesEmTesouraria-{st.session_state['empresa']} - "
-                         f"{st.session_state['data']:%d.%m.%Y}.pdf",
+                filename=f"static/escriturais/@deletar/AcoesEmTesouraria-"
+                         f"{st.session_state['empresa'].replace('/', '.')} - {st.session_state['data']:%d.%m.%Y}.pdf",
                 pagesize=A4
             )
             cnv.drawImage("static/imagens/bb.jpg", 40, 780, 300, 38)
@@ -291,6 +272,13 @@ if st.session_state["montar"]:
 
             cnv.save()
 
-            st.toast("**Declaração de Ações em Tesouraria gerada com sucesso!**", icon=":material/check_circle:")
+            message.info("**Declaração de Ações em Tesouraria gerada com sucesso! Pode clicar Despachar E-mail**",
+                         icon=":material/check_circle:", width=600)
 
-            send_mail()
+if st.session_state["open_mail"]:
+    if os.path.exists(f"static/escriturais/@deletar/AcoesEmTesouraria-{st.session_state['empresa'].replace('/', '.')} "
+                      f"- {st.session_state['data']:%d.%m.%Y}.pdf"):
+        send_mail()
+
+    else:
+        message.warning("Ainda não, primeiro clicar Montar Declaração...", icon=":material/warning:", width=600)

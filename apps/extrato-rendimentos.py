@@ -9,7 +9,7 @@ locale.setlocale(locale.LC_ALL, "pt_BR.UTF-8")
 
 engine: SQLConnection = st.connection(name="DB2", type=SQLConnection)
 
-st.subheader(":material/local_atm: Extrato de Rendimentos")
+message = st.empty()
 
 
 @st.cache_data(show_spinner="**:material/hourglass: Preparando a listagem da empresa, aguarde...**")
@@ -79,6 +79,8 @@ def load_extrato(field: str, _mci: int, value: int | str) -> pd.DataFrame:
     )
 
 
+st.subheader(":material/local_atm: Extrato de Rendimentos")
+
 kv: dict[str, int] = load_client()
 
 with st.columns(2)[0]:
@@ -101,12 +103,12 @@ if st.session_state["pesquisar"]:
 
         if not any([st.session_state["nome_investidor"], st.session_state["mci_investidor"],
                     st.session_state["cpf_cnpj_investidor"]]):
-            st.toast("**Deve preencher ao menos 1 campo abaixo**", icon=":material/warning:")
+            message.warning("**Deve preencher ao menos 1 campo abaixo**", icon=":material/warning:", width=600)
             st.stop()
 
         if all([st.session_state["nome_investidor"], st.session_state["mci_investidor"],
                 st.session_state["cpf_cnpj_investidor"]]):
-            st.toast("**Só deve preencher 1 campo abaixo**", icon=":material/warning:")
+            message.warning("**Só deve preencher 1 campo abaixo**", icon=":material/warning:", width=600)
             st.stop()
 
         with st.spinner("**:material/hourglass: Pesquisando os dados, aguarde...**", show_time=True):
@@ -149,4 +151,5 @@ if st.session_state["pesquisar"]:
                 st.button("**Voltar**", key="back", type="primary", icon=":material/reply:")
 
             else:
-                st.toast("**Não foram encontrados rendimentos para a pesquisa realizada**", icon=":material/error:")
+                message.info("**Não foram encontrados rendimentos para a pesquisa realizada**",
+                             icon=":material/error:", width=600)

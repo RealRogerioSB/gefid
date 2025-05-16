@@ -5,9 +5,7 @@ from unidecode import unidecode
 
 engine: SQLConnection = st.connection(name="DB2", type=SQLConnection)
 
-st.subheader(":material/autorenew: Consulta Cautelar (ABB/BBA)")
-
-st.markdown("**Consulta aos Sistemas Antigos ABB e BBA**")
+message = st.empty()
 
 
 def load_acionista(key: str, value: int | str) -> pd.DataFrame:
@@ -31,6 +29,10 @@ def load_certificado(value: tuple) -> pd.DataFrame:
     )
 
 
+st.subheader(":material/autorenew: Consulta Cautelar (ABB/BBA)")
+
+st.markdown("**Consulta aos Sistemas Antigos ABB e BBA**")
+
 st.columns(5)[0].text_input("**Inscrição:**", key="inscrição", max_chars=10)
 st.columns(2)[0].text_input("**Nome do Investidor:**", key="nome_on", max_chars=60)
 
@@ -43,24 +45,24 @@ st.button("**Pesquisar**", key="search", type="primary", icon=":material/search:
 if st.session_state["search"]:
     if all([st.session_state["inscrição"], st.session_state["nome_on"],
             st.session_state["bdc"], st.session_state["cpf_cnpj"]]):
-        st.toast("**Só pode preencher um dos campos abaixo**", icon=":material/warning:")
+        message.warning("**Só pode preencher um dos campos abaixo**", icon=":material/warning:", width=600)
         st.stop()
 
     if not any([st.session_state["inscrição"], st.session_state["nome_on"],
                 st.session_state["bdc"], st.session_state["cpf_cnpj"]]):
-        st.toast("**É necessário preencher um campo abaixo**", icon=":material/warning:")
+        message.warning("**É necessário preencher um campo abaixo**", icon=":material/warning:", width=600)
         st.stop()
 
     if not st.session_state["inscrição"].isdigit() and st.session_state["inscrição"]:
-        st.toast("**O campo 'Inscrição' tem de ser numérico**", icon=":material/warning:")
+        message.warning("**O campo 'Inscrição' tem de ser numérico**", icon=":material/warning:", width=600)
         st.stop()
 
     elif not st.session_state["bdc"].isdigit() and st.session_state["bdc"]:
-        st.toast("**O campo 'MCI' tem de ser numérico**", icon=":material/warning:")
+        message.warning("**O campo 'MCI' tem de ser numérico**", icon=":material/warning:", width=600)
         st.stop()
 
     elif not st.session_state["cpf_cnpj"].isdigit() and st.session_state["cpf_cnpj"]:
-        st.toast("**O campo 'CPF/CNPJ' tem de ser numérico**", icon=":material/warning:")
+        message.warning("**O campo 'CPF/CNPJ' tem de ser numérico**", icon=":material/warning:", width=600)
         st.stop()
 
     with st.spinner("**:material/hourglass: Preparando para exportar os dados, aguarde...**", show_time=True):
@@ -76,7 +78,7 @@ if st.session_state["search"]:
         )
 
         if acionistas.empty:
-            st.toast("**Não foram encontrados dados para a pesquisa realizada**", icon=":material/error:")
+            message.info("**Não foram encontrados dados para a pesquisa...**", icon=":material/error:", width=600)
             st.stop()
 
         inscricoes: tuple = tuple(acionistas["inscricao"].astype("int64").drop_duplicates().to_list())
@@ -84,7 +86,7 @@ if st.session_state["search"]:
         certificados: pd.DataFrame = load_certificado(value=inscricoes)
 
         if not certificados.empty:
-            st.toast("**Não foram encontrados dados para a pesquisa realizada**", icon=":material/error:")
+            message.warning("**Não foram encontrados dados para a pesquisa...**", icon=":material/error:", width=600)
             st.stop()
 
         st.divider()
@@ -138,4 +140,5 @@ if st.session_state["search"]:
             index=False,
         )
 
-        st.toast("**Gerada com sucesso a planilha para a pasta específica**", icon=":material/check_circle:")
+        message.info("**Gerada com sucesso a planilha para a pasta específica**",
+                     icon=":material/check_circle:", width=600)

@@ -7,7 +7,7 @@ from streamlit.connections import SQLConnection
 
 engine: SQLConnection = st.connection(name="DB2", type=SQLConnection)
 
-st.subheader(":material/send_money: Rendimentos Distribuídos")
+message = st.empty()
 
 
 @st.cache_data(show_spinner="**:material/hourglass: Preparando a lista de empresa, aguarde...**")
@@ -91,6 +91,8 @@ def load_data(_mci: int) -> tuple[str, ...]:
     return str(load["mci"].iloc[0]), load["empresa"].iloc[0], load["cnpj"].iloc[0], load["sigla"].iloc[0]
 
 
+st.subheader(":material/send_money: Rendimentos Distribuídos")
+
 st.radio(label="**Situação de Clientes:**", options=["ativos", "inativos"], key="option")
 
 kv: dict[str, int] = load_active("null") if st.session_state["option"] == "ativos" else load_active("not null")
@@ -156,7 +158,7 @@ if st.session_state["view"]:
             st.button("**Voltar**", key="back_view", type="primary", icon=":material/reply:")
 
         else:
-            st.toast(body="**Não há dados para exibir...**", icon=":material/error:")
+            message.info(body="**Não há dados para exibir...**", icon=":material/error:", width=600)
 
 if st.session_state["csv"]:
     with st.spinner("**:material/hourglass: Preparando os dados para baixar, aguarde...**", show_time=True):
@@ -165,7 +167,7 @@ if st.session_state["csv"]:
         if not get_report.empty:
             sigla: str = load_data(mci)[3]
 
-            st.toast("**Arquivo CSV pronto para baixar**", icon=":material/check_circle:")
+            message.info("**Arquivo CSV pronto para baixar**", icon=":material/check_circle:", width=600)
 
             st.download_button(
                 label="**Baixar CSV**",
@@ -179,7 +181,7 @@ if st.session_state["csv"]:
             )
 
         else:
-            st.toast(body="**Não há dados para baixar...**", icon=":material/error:")
+            message.info(body="**Não há dados para baixar...**", icon=":material/error:", width=600)
 
 if st.session_state["xlsx"]:
     with st.spinner("**:material/hourglass: Preparando os dados para baixar...**", show_time=True):
@@ -216,7 +218,7 @@ if st.session_state["xlsx"]:
                     get_report[int(3e6):int(4e6)].to_excel(writer, sheet_name="4", index=False)
                     get_report[int(4e6):].to_excel(writer, sheet_name="5", index=False)
 
-            st.toast(body="**Arquivo XLSX pronto para baixar**", icon=":material/check_circle:")
+            message.info(body="**Arquivo XLSX pronto para baixar**", icon=":material/check_circle:", width=600)
 
             st.download_button(
                 label="**Baixar XLSX**",
@@ -229,4 +231,4 @@ if st.session_state["xlsx"]:
             )
 
         else:
-            st.toast(body="**Não há dados para baixar...**", icon=":material/error:")
+            message.info(body="**Não há dados para baixar...**", icon=":material/error:", width=600)

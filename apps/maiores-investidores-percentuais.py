@@ -6,6 +6,7 @@ from email.mime.base import MIMEBase
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
+import numpy as np
 import pandas as pd
 import reportlab.rl_config
 import streamlit as st
@@ -21,8 +22,10 @@ engine: SQLConnection = st.connection(name="DB2", type=SQLConnection)
 
 message = st.empty()
 
+st.subheader(":material/workspace_premium: Declarações de Maiores Investidores Percentuais")
 
-@st.cache_data(show_spinner="**:material/hourglass: Preparando a listagem da empresa, aguarde...**")
+
+@st.cache_data(show_spinner="**:material/hourglass: Preparando a lista da empresa, aguarde...**")
 def load_client() -> dict[str, int]:
     load: pd.DataFrame = engine.query(
         sql="""
@@ -39,7 +42,7 @@ def load_client() -> dict[str, int]:
 
 def load_empresa(_mci: int, _data_ant: date, _data_atual: date) -> pd.DataFrame:
     return engine.query(
-        sql=f"""
+        sql="""
             SELECT
                 t5.CD_CLI_ACNT AS MCI,
                 STRIP(CASE
@@ -50,16 +53,16 @@ def load_empresa(_mci: int, _data_ant: date, _data_atual: date) -> pd.DataFrame:
                     WHEN t5.CD_CLI_ACNT < 1000000000 THEN
                         CASE
                             WHEN t6.COD_TIPO = 2 THEN LPAD(CAST(t6.COD_CPF_CGC AS BIGINT), 14, '0')
-                            ELSE LPAD(CAST(t6.COD_CPF_CGC AS BIGINT), 14, '0')
+                            ELSE LPAD(CAST(t6.COD_CPF_CGC AS BIGINT), 11, '0')
                         END
                     ELSE
                         CASE
                             WHEN t6.COD_TIPO = 2 THEN LPAD(CAST(t8.NR_CPF_CNPJ_INVR AS BIGINT), 14, '0')
-                            ELSE LPAD(CAST(t8.NR_CPF_CNPJ_INVR AS BIGINT), 14, '0')
+                            ELSE LPAD(CAST(t8.NR_CPF_CNPJ_INVR AS BIGINT), 11, '0')
                         END
                 END AS CPF_CNPJ,
                 t5.CD_TIP_TIT AS COD_TITULO,
-                STRIP(t7.SG_TIP_TIT) || ' ' || STRIP(t7.CD_CLS_TIP_TIT) AS SIGLA,
+                CONCAT(STRIP(t7.SG_TIP_TIT), STRIP(t7.CD_CLS_TIP_TIT)) AS SIGLA,
                 CAST(t5.QUANTIDADE AS BIGINT) AS QTD,
                 CASE
                     WHEN t5.CD_CLI_CSTD = 903485186 THEN 'ESCRITURAL'
@@ -84,8 +87,7 @@ def load_empresa(_mci: int, _data_ant: date, _data_atual: date) -> pd.DataFrame:
                     FROM
                         DB2AEB.MVTC_DIAR_PSC t1
                     WHERE
-                        t1.CD_CLI_EMT = :mci AND
-                        t1.CD_CLI_ACNT <> 205007939
+                        t1.CD_CLI_EMT = :mci
                     UNION ALL
                     SELECT
                         t1.CD_CLI_EMT,
@@ -97,8 +99,7 @@ def load_empresa(_mci: int, _data_ant: date, _data_atual: date) -> pd.DataFrame:
                     FROM
                         DB2AEB.PSC_TIT_MVTD t1
                     WHERE
-                        t1.CD_CLI_EMT = :mci AND
-                        t1.CD_CLI_ACNT <> 205007939
+                        t1.CD_CLI_EMT = :mci
                 )
             ) t5
                 LEFT JOIN DB2MCI.CLIENTE t6
@@ -123,9 +124,16 @@ def load_empresa(_mci: int, _data_ant: date, _data_atual: date) -> pd.DataFrame:
 def load_cadastro(_mci: int) -> tuple[str, ...]:
     load: pd.DataFrame = engine.query(
         sql="""
-            SELECT t1.CD_CLI_EMT AS MCI, STRIP(t2.NOM) AS EMPRESA, LPAD(t2.COD_CPF_CGC, 14, '0') AS CNPJ
-            FROM DB2AEB.PRM_EMP t1 INNER JOIN DB2MCI.CLIENTE t2 ON t2.COD = t1.CD_CLI_EMT
-            WHERE t1.CD_CLI_EMT = :mci
+            SELECT
+                t1.CD_CLI_EMT AS MCI,
+                STRIP(t2.NOM) AS EMPRESA,
+                LPAD(t2.COD_CPF_CGC, 14, '0') AS CNPJ
+            FROM
+                DB2AEB.PRM_EMP t1
+                INNER JOIN DB2MCI.CLIENTE t2
+                    ON t2.COD = t1.CD_CLI_EMT
+            WHERE
+                t1.CD_CLI_EMT = :mci
         """,
         show_spinner=False,
         ttl=0,
@@ -136,7 +144,7 @@ def load_cadastro(_mci: int) -> tuple[str, ...]:
 
 
 @st.dialog("Despachar E-mail")
-def send_mail() -> None:
+def send_mail():
     st.text_input("**Para:**", key="to_addr", help="Mais e-mail, separa com a vírgula", icon=":material/mail:")
     st.text_input("**Cc:**", key="cc_addr", help="Mais e-mail, separa com a vírgula", icon=":material/mail:")
     st.columns(3)[1].button("**Despachar**", key="despachar", type="primary", icon=":material/send:",
@@ -154,25 +162,25 @@ def send_mail() -> None:
         msg.attach(MIMEText(
             """<html><head></head><body>
             <br><br>
-            <div>
-                Prezados(as),<br><br>
-                Segue <b> em anexo </b> Declaração de Maiores Investidores.
-            </div><br><br></body></html>""",
+            <div>Prezados(as),<br><br>
+            Segue <b> em anexo </b> Declaração de Maiores Investidores.
+            </div>
+            <br><br>
+            </body></html>""",
             "html"
         ))
 
         part = MIMEBase("application", "octet-stream")
 
         with open(f"static/escriturais/@deletar/{date.today().year}-{last_protocol}-"
-                  f"{st.session_state['empresa'].replace('/', '.')}-{st.session_state['quantidade']}"
-                  f"MaioresAcionistas.pdf", "rb") as file1:
-            payload: bytes = file1.read()
+                  f"{st.session_state['empresa'].replace('/', '.')}-MaioresAcionistasPercentuais.pdf", "rb") as r:
+            payload: bytes = r.read()
 
         part.set_payload(payload)
 
         encoders.encode_base64(part)
 
-        part.add_header("Content-Disposition", f"attachment; filename='maiores_investidores.pdf'")
+        part.add_header("Content-Disposition", "attachment; filename='maiores_investidores.pdf'")
 
         msg.attach(part)
 
@@ -198,10 +206,8 @@ def send_mail() -> None:
         st.rerun()
 
 
-st.subheader(":material/editor_choice: Declaração de Maiores Investidores")
-
-with open("static/arquivos/protocolador/protocolador.txt") as file2:
-    last_protocol: int = int([x.strip().split("-") for x in file2.readlines()][-1][1]) + 1
+with open("static/arquivos/protocolador/protocolador.txt") as f:
+    last_protocol: int = int([x.strip().split("-") for x in f.readlines()][-1][1]) + 1
 
 st.markdown(f"Protocolo: **{date.today().year}** / DIEST: **{last_protocol}**")
 
@@ -211,13 +217,12 @@ st.columns(2)[0].selectbox("**Clientes Ativos:**", options=kv.keys(), key="empre
 
 mci: int = kv.get(st.session_state["empresa"])
 
-col1, col2, _ = st.columns([1, 0.8, 5.2])
+col1, col2, _ = st.columns([1, 0.9, 5.1])
 col1.date_input("**Data:**", key="data", format="DD/MM/YYYY")
-col2.number_input("**Quantidade:**", min_value=1, max_value=1000, value=10, key="quantidade")
+col2.number_input("**Percentual:**", min_value=1.0, max_value=100.0, value=5.0, step=0.5, key="percentual")
 
 col1, col2, *_ = st.columns(6)
-col1.button("**Montar Declaração**", key="montar", type="primary", icon=":material/picture_as_pdf:",
-            use_container_width=True)
+col1.button("**Montar Declaração**", key="montar", type="primary", icon=":material/picture_as_pdf:")
 col2.button("**Preparar E-mail**", key="open_mail", type="primary", icon=":material/mail:", use_container_width=True)
 
 if st.session_state["montar"]:
@@ -235,26 +240,25 @@ if st.session_state["montar"]:
             .rename(columns={"investidor": "INVESTIDOR", "cpf_cnpj": "CPF_CNPJ", "sigla": "SIGLA", "qtd": "QTD"})
 
         if base.empty:
-            message.info("**Não há dados para montar a declaração...**", icon=":material/warning:", width=600)
+            message.info("**Não há dados para montar a declaração...**", icon=":material/error:", width=600)
             st.stop()
 
         base["pk"] = base.apply(lambda x: f"{x['mci']}-{x['cod_titulo']}-{x['custodiante']}", axis=1)
         base = base.groupby("pk").first()
         base = base[base["QTD"].ne(0)]
-
+        base["%"] = np.trunc(base["QTD"] / sum(base["QTD"]) * 100)
         base.drop(["mci", "cod_titulo", "custodiante"], axis=1, inplace=True)
 
         if len(base["SIGLA"].unique()) == 1:
             base.pop("SIGLA")
-            base = base.groupby("CPF_CNPJ").agg({"INVESTIDOR": "first", "CPF_CNPJ": "first", "QTD": "sum"})
+            base = base.groupby("CPF_CNPJ").agg({"INVESTIDOR": "first", "CPF_CNPJ": "first", "QTD": "sum", "%": "sum"})
 
         else:
             base = base.groupby(["CPF_CNPJ", "SIGLA"]).agg({"INVESTIDOR": "first", "CPF_CNPJ": "first",
-                                                            "SIGLA": "first", "QTD": "sum"})
+                                                            "SIGLA": "first", "QTD": "sum", "%": "sum"})
 
         base = base.sort_values(["QTD"], ascending=False)
-        base.reset_index(drop=True, inplace=True)
-        base = base[:st.session_state["quantidade"]]
+        base = base[base["%"].ge(st.session_state["percentual"])]
 
         # definindo estilos que serão usados na carta
         header: ParagraphStyle = ParagraphStyle("header", fontName="Vera", fontSize=11, textColor=colors.black,
@@ -280,8 +284,8 @@ if st.session_state["montar"]:
                 f"O Banco Brasil S.A., Instituição Depositária de Ações Escriturais conforme Ato Declaratório "
                 f"nº 4581, de 14/11/1997, da Comissão de Valores Mobiliários - CVM, na execução dos atos relativos "
                 f"serviços de escrituração das ações de emissão da empresa {nome_empresa}, cnpj: {cnpj_empresa} "
-                f"(emissora) repassa a lista dos {st.session_state['quantidade']} acionistas com maior representati"
-                f"vidade no capital social total ex-tesouraria de emissora em {st.session_state['data']:%d/%m/%Y}.",
+                f"(emissora) repassa a lista dos acionistas com maior representatividade no capital social total "
+                f"ex-tesouraria de emissora em {st.session_state['data']:%d/%m/%Y}.",
                 content
             )
         ]
@@ -314,8 +318,7 @@ if st.session_state["montar"]:
 
         pdf: SimpleDocTemplate = SimpleDocTemplate(
             filename=f"static/escriturais/@deletar/{date.today().year}-{last_protocol}-"
-                     f"{st.session_state['empresa'].replace('/', '.')}-{st.session_state['quantidade']}"
-                     f"MaioresAcionistas.pdf",
+                     f"{st.session_state['empresa'].replace('/', '.')}-MaioresAcionistasPercentuais.pdf",
             pagesize=A4
         )
         pdf.build(elements)
@@ -325,8 +328,7 @@ if st.session_state["montar"]:
 
 if st.session_state["open_mail"]:
     if os.path.exists(f"static/escriturais/@deletar/{date.today().year}-{last_protocol}-"
-                      f"{st.session_state['empresa'].replace('/', '.')}-"
-                      f"{st.session_state['quantidade']}MaioresAcionistas.pdf"):
+                      f"{st.session_state['empresa'].replace('/', '.')}-MaioresAcionistasPercentuais.pdf"):
         send_mail()
 
     else:

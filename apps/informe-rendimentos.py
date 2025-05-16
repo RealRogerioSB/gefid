@@ -9,20 +9,7 @@ from unidecode import unidecode
 
 engine: SQLConnection = st.connection(name="DB2", type=SQLConnection)
 
-st.subheader(f":material/ad: Informe de Rendimentos - {date.today().year}")
-
-params: dict[str, bool | ColumnConfig] = dict(
-    hide_index=True,
-    use_container_width=True,
-    column_config=dict(
-        mci_investidor=st.column_config.NumberColumn(label="MCI"),
-        investidor=st.column_config.TextColumn(label="Investidor"),
-        status=st.column_config.TextColumn(label="Status", disabled=True),
-        log=st.column_config.DatetimeColumn(label="Log", disabled=True, format="DD/MM/YYYY HH:MM:SS"),
-        cpf_cnpj=st.column_config.TextColumn(label="CPF/CNPJ", disabled=True),
-        email=st.column_config.TextColumn(label="E-mail", disabled=True),
-    )
-)
+message = st.empty()
 
 
 def get_join_email(key: str, value: int | str) -> pd.DataFrame:
@@ -92,6 +79,22 @@ def get_b3(key: str, value: int | str) -> pd.DataFrame:
     )
 
 
+st.subheader(f":material/ad: Informe de Rendimentos - {date.today().year}")
+
+params: dict[str, bool | ColumnConfig] = dict(
+    hide_index=True,
+    use_container_width=True,
+    column_config=dict(
+        mci_investidor=st.column_config.NumberColumn(label="MCI"),
+        investidor=st.column_config.TextColumn(label="Investidor"),
+        status=st.column_config.TextColumn(label="Status", disabled=True),
+        log=st.column_config.DatetimeColumn(label="Log", disabled=True, format="DD/MM/YYYY HH:MM:SS"),
+        cpf_cnpj=st.column_config.TextColumn(label="CPF/CNPJ", disabled=True),
+        email=st.column_config.TextColumn(label="E-mail", disabled=True),
+    )
+)
+
+
 def report(mail: pd.DataFrame, bb: pd.DataFrame, b3: pd.DataFrame) -> None:
     st.markdown("")
 
@@ -135,12 +138,12 @@ with st.container():
 if st.session_state["search"]:
     if all([st.session_state["nome_inv"], st.session_state["mci_inv"], st.session_state["cpf_cnpj"],
             st.session_state["mail_inv"]]):
-        st.toast("**Deve preencher somente um campo para pesquisar**", icon=":material/warning:")
+        message.warning("**Deve preencher somente um campo para pesquisar**", icon=":material/warning:", width=600)
         st.stop()
 
     if not any([st.session_state["nome_inv"], st.session_state["mci_inv"], st.session_state["cpf_cnpj"],
                 st.session_state["mail_inv"]]):
-        st.toast("**Precisa digitar um campo qualquer para pesquisar**", icon=":material/warning:")
+        message.warning("**Precisa digitar um campo qualquer para pesquisar**", icon=":material/warning:", width=600)
         st.stop()
 
     with st.spinner(text=":material/hourglass: Obtendo os dados, aguarde...", show_time=True):
@@ -159,7 +162,7 @@ if st.session_state["search"]:
                     get_b3("mci_investidor", re.sub(r"\D", "", st.session_state["mci_inv"]))
                 )
             else:
-                st.toast("**O campo MCI está inválido...**", icon=":material/warning:")
+                message.warning("**O campo MCI está inválido...**", icon=":material/warning:", width=600)
 
         elif st.session_state["cpf_cnpj"] != "":
             if re.sub(r"\D", "", st.session_state["cpf_cnpj"]):
@@ -169,7 +172,7 @@ if st.session_state["search"]:
                     get_b3("cpf_cnpj", re.sub("\D", "", st.session_state["cpf_cnpj"]))
                 )
             else:
-                st.toast("**O Campo CPF / CNPJ está inválido...**", icon=":material/warning:")
+                message.warning("**O Campo CPF / CNPJ está inválido...**", icon=":material/warning:", width=600)
 
         elif st.session_state["mail_inv"] != "":
             report(

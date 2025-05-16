@@ -7,11 +7,7 @@ from streamlit.connections import SQLConnection
 
 engine: SQLConnection = st.connection("DB2", type=SQLConnection)
 
-st.subheader(":material/dynamic_form: DIPJ")
-
-st.columns(2)[0].markdown("##### Devem ser colocados 12 arquivos 064B da mesma empresa na pasta "
-                          "P:\MER\Acoes_Escriturais\@deletar\, e não pode ter nenhum arquivo com "
-                          "a mesma extensão de outra empresa ou ano")
+message = st.empty()
 
 
 @st.cache_data(show_spinner="**:material/hourglass: Preparando a listagem da empresa, aguarde...**")
@@ -55,6 +51,12 @@ def load_report(_mci: int) -> tuple[str, ...]:
     return str(load["mci"].iloc[0]), load["empresa"].iloc[0], load["cnpj"].iloc[0], load["sigla"].iloc[0]
 
 
+st.subheader(":material/dynamic_form: DIPJ")
+
+st.columns(2)[0].markdown("##### Devem ser colocados 12 arquivos 064B da mesma empresa na pasta "
+                          "P:\MER\Acoes_Escriturais\@deletar\, e não pode ter nenhum arquivo com "
+                          "a mesma extensão de outra empresa ou ano")
+
 col1 = st.columns(2)[0]
 col1.radio(label="**Situação de Clientes:**", options=["ativos", "inativos"], key="option")
 
@@ -80,13 +82,13 @@ if st.button("**Gerar DIPJ**", type="primary", icon=":material/save:"):
 
         # Verificando se foram localizados 12 arquivos *.PAGO no diretório
         if len(all_files) < 12:
-            st.toast("**Tem menos de 12 arquivos de rendimentos pagos no diretório.Favor corrigir e reiniciar**",
-                     icon=":material/warning:")
+            message.warning("**Tem menos de 12 arquivos de rendimentos pagos no diretório.Favor corrigir e reiniciar**",
+                            icon=":material/warning:", width=600)
             st.stop()
 
         if len(all_files) > 12:
-            st.toast("**Tem mais de 12 arquivos de rendimentos pagos no diretório.Favor corrigir e reiniciar**",
-                     icon=":material/warning:")
+            message.warning("**Tem mais de 12 arquivos de rendimentos pagos no diretório.Favor corrigir e reiniciar**",
+                            icon=":material/warning:", width=600)
             st.stop()
 
         li = []
@@ -128,15 +130,16 @@ if st.button("**Gerar DIPJ**", type="primary", icon=":material/save:"):
 
         # Verificando se todos os arquivos são do mesmo ano e guardando o ano caso
         if len(dfs["Ano Ref"].unique()) == 1:
-            st.toast("**Não achamos ninguém**", icon=":material/warning:")
+            message.info("**Não achamos ninguém**", icon=":material/warning:", width=600)
             st.stop()
 
         # Verificando se todos os arquivos são do mesmo ano e guardando o ano caso
         if len(dfs["Ano Ref"].unique()) > 2:
             dfs.drop(labels=[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11], axis=0, inplace=True)
 
-            st.toast(f"**Identificamos arquivos de anos diferentes {dfs['Ano Ref'].unique()}.\nTodos os arquivos "
-                     f"precisam ser do mesmo ano.\nIremos encerrar o processo.**", icon=":material/warning:")
+            message.warning(f"**Identificamos arquivos de anos diferentes {dfs['Ano Ref'].unique()}.\nTodos os"
+                            f" arquivos precisam ser do mesmo ano.\nIremos encerrar o processo.**",
+                            icon=":material/warning:", width=600)
             st.stop()
 
         table = pd.pivot_table(dfs, values=["Vlr Bruto", "Vlr IR", "Vlr Líquido"],
@@ -397,4 +400,4 @@ if st.button("**Gerar DIPJ**", type="primary", icon=":material/save:"):
 
         workbook.close()
 
-        st.toast("**Feito! O arquivo já está na pasta específica**", icon=":material/check_circle:")
+        message.info("**Feito! O arquivo já está na pasta específica**", icon=":material/check_circle:", width=600)

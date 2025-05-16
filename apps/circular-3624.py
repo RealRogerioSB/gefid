@@ -7,10 +7,7 @@ from streamlit.connections import SQLConnection
 
 engine: SQLConnection = st.connection(name="DB2", type=SQLConnection)
 
-st.subheader(":material/cycle: Circular BACEN 3624")
-
-st.columns([3, 1])[0].markdown("#### Envio de arquivo à COGER, com a informação dos rendimentos pagos aos acionistas "
-                               "do Banco do Brasil, para atender Carta Circular 3624 do Banco Central")
+message = st.empty()
 
 
 def load_data(year: int, month: int) -> pd.DataFrame:
@@ -50,7 +47,7 @@ def preparo_xlsx(year: int, month: int) -> None:
     xlsx: pd.DataFrame = load_data(year, month)
 
     if xlsx.empty:
-        st.toast(body="**Não há dados para enviar**", icon=":material/error:")
+        message.info(body="**Não há dados para enviar**", icon=":material/error:", width=600)
         st.stop()
 
     with st.spinner("**:material/hourglass: Preparando os dados para enviar, aguarde...**", show_time=True):
@@ -313,6 +310,11 @@ def preparo_xlsx(year: int, month: int) -> None:
             xlsx.write_excel(workbook=wb, worksheet=ws)
 
 
+st.subheader(":material/cycle: Circular BACEN 3624")
+
+st.columns([3, 1])[0].markdown("#### Envio de arquivo à COGER, com a informação dos rendimentos pagos aos acionistas "
+                               "do Banco do Brasil, para atender Carta Circular 3624 do Banco Central")
+
 with open("static/arquivos/email3624.txt") as f:
     email = f.readlines()
 
@@ -342,4 +344,4 @@ if st.session_state["mail"]:
         preparo_xlsx(st.session_state["ano"], st.session_state["mês"])
 
     else:
-        st.toast("**Deve preencher o e-mail...**", icon=":material/warning:")
+        message.warning("**Deve preencher o e-mail...**", icon=":material/warning:", width=600)

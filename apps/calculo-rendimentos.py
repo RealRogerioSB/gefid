@@ -3,9 +3,11 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 
-st.subheader(":material/calculate: Cálculo de Rendimentos")
+message = st.empty()
 
 with st.columns(2)[0]:
+    st.subheader(":material/calculate: Cálculo de Rendimentos")
+
     st.markdown("##### Os arquivos com a extensão AEBF543A devem ser colocadas na pasta "
                 "P:\MER\Acoes_Escriturais\@deletar")
     st.markdown("##### Certifique-se que não existam outros arquivos com a mesma extensão"
@@ -38,7 +40,8 @@ if st.session_state["gerar"]:
         all_files: list[str] = glob.glob(f"{diretorio_origem}/*.AEBF543A.*")
 
         if len(all_files) == 0:
-            st.toast("**Não foram localizados arquivos 543a no diretório selecionado**", icon=":material/error:")
+            message.info("**Não foram localizados arquivos 543a no diretório selecionado**",
+                         icon=":material/error:", width=600)
             st.stop()
 
         li: list = []
@@ -71,9 +74,9 @@ if st.session_state["gerar"]:
         lista_dir = df["direito"].unique()
 
         if len(df["cod_emissor"].unique()) > 1:
-            st.toast(f"**Identificamos que os arquivos contém dois emissores diferentes "
-                     f"{df['cod_emissor'].unique()}.\nTodos os arquivos precisam ser do "
-                     f"mesmo emissor.\nIremos encerrar o processo**", icon=":material/warning:")
+            message.info(f"**Identificamos que os arquivos contém dois emissores diferentes "
+                         f"{df['cod_emissor'].unique()}.\nTodos os arquivos precisam ser do "
+                         f"mesmo emissor.\nIremos encerrar o processo**", icon=":material/warning:", width=600)
             st.stop()
 
         df["cpfcnpj_investidor"] = df["cpfcnpj_investidor"].astype(float)
@@ -529,5 +532,5 @@ if st.session_state["gerar"]:
             workbook.close()
             writer.close()
 
-        st.toast("**543 processado com sucesso! Arquivo salvo na mesma pasta de origem**",
-                 icon=":material/check_circle:")
+        message.info("**543 processado com sucesso! Arquivo salvo na mesma pasta de origem**",
+                     icon=":material/check_circle:", width=600)
