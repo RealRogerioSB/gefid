@@ -7,13 +7,10 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-st.logo(image="img/bb_png.png", size="large", link="https://gefid-aplic-1.intranet.bb.com.br/")
+with open("styles/styles.css") as css:
+    st.markdown(f"<style>{css.read()}</style>", unsafe_allow_html=True)
 
-st.markdown("""<style>
-    [data-testid='stHeader'] {display: none;}
-    [data-testid='collapsedControl'] {display: none;}
-    #MainMenu {visibility: hidden} footer {visibility: hidden}
-</style>""", unsafe_allow_html=True)
+st.logo(image="img/bb_png.png", size="large", link="https://gefid-aplic-1.intranet.bb.com.br/")
 
 st.navigation(
     pages={
