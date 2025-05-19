@@ -61,10 +61,10 @@ def load_extrato(join: str, field: str, _mci: int, value: int | str) -> pd.DataF
                 t1.CD_CLI_EMT = :mci AND
                 {field} = :value
             GROUP BY
+                t0.SG_TIP_TIT,
                 t1.CD_TIP_TIT,
                 t1.DT_MVTC,
-                t1.CD_CLI_CSTD,
-                t0.SG_TIP_TIT
+                t1.CD_CLI_CSTD
             ORDER BY
                 t1.DT_MVTC
         """,
