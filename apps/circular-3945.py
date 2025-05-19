@@ -8,8 +8,6 @@ data: pd.DataFrame = pd.read_csv("static/arquivos/circular3945/cadastro.csv", de
 if "editor" not in st.session_state:
     st.session_state["editor"] = data
 
-message = st.empty()
-
 st.subheader(":material/cycle: Circular BACEN 3945")
 
 st.columns([3, 1])[0].write("##### Envio de arquivo à **BB Asset** com a informação do fechamento mensal das carteiras"
@@ -65,18 +63,18 @@ col[1].button(label="**Reverter**", key="reply", type="primary", icon=":material
 
 if st.session_state["save"]:
     if not editor.equals(data):
-        message.info("**A planilha foi atualizada**", icon=":material/check_circle:", width=600)
+        st.toast("###### A planilha foi atualizada.", icon=":material/check_circle:")
         st.session_state["editor"].to_csv("static/arquivos/circular3945/cadastro2.csv", index=False)
         st.rerun()
 
     else:
-        message.info("**A planilha ainda não foi atualizada**", icon=":material/error:", width=600)
+        st.toast("###### A planilha ainda não foi atualizada.", icon=":material/error:")
 
 if st.session_state["reply"]:
     if not editor.equals(data):
         st.session_state["editor"] = data.copy()
-        message.info("**A planilha foi restaurada**", icon=":material/check_circle:", width=600)
+        st.toast("###### A planilha foi restaurada.", icon=":material/check_circle:")
         st.rerun()
 
     else:
-        message.info("**A planilha ainda não foi atualizada**", icon=":material/error:", width=600)
+        st.toast("###### A planilha ainda não foi atualizada.", icon=":material/error:")

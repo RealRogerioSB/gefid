@@ -21,8 +21,6 @@ locale.setlocale(locale.LC_ALL, "pt_BR.UTF-8")
 
 engine: SQLConnection = st.connection(name="DB2", type=SQLConnection)
 
-message = st.empty()
-
 
 @st.cache_data(show_spinner="**:material/hourglass: Preparando a listagem da empresa, aguarde...**")
 def load_client() -> dict[str, int]:
@@ -175,7 +173,7 @@ def send_mail() -> None:
                 )
 
             except (SMTPConnectError, SMTPServerDisconnected):
-                message.error("**Falha ao conectar o serviço de e-mail...**", icon=":material/error:", width=600)
+                st.toast("###### Falha ao conectar o serviço de e-mail...", icon=":material/error:")
 
             else:
                 with open("static/arquivos/protocolador/protocolador.txt", "a") as save_protocol:
@@ -185,7 +183,7 @@ def send_mail() -> None:
 
                 st.session_state["addr_mail"] = None
 
-                message.info("**E-mail enviado com sucesso!**", icon=":material/check_circle:", width=600)
+                st.toast("###### E-mail enviado com sucesso!", icon=":material/check_circle:")
 
 
 st.markdown("##### :material/bar_chart_4_bars: Declaração de Ações em Tesouraria")
@@ -216,8 +214,7 @@ if st.session_state["montar"]:
         office: pd.DataFrame = load_empresa(mci, data_ant, st.session_state["data"])
 
         if office.empty:
-            message.info("**Não identificamos ações em tesouraria para a referida empresa**",
-                         icon=":material/error:", width=600)
+            st.toast("###### Não identificamos ações em tesouraria para a referida empresa", icon=":material/error:")
 
         else:
             office = office[office["quantidade"].ne(0)]
@@ -272,8 +269,8 @@ if st.session_state["montar"]:
 
             cnv.save()
 
-            message.info("**Declaração de Ações em Tesouraria gerada com sucesso! Pode clicar Despachar E-mail**",
-                         icon=":material/check_circle:", width=600)
+            st.toast("###### Declaração de Ações em Tesouraria gerada com sucesso! Pode clicar Despachar E-mail",
+                     icon=":material/check_circle:")
 
 if st.session_state["open_mail"]:
     if os.path.exists(f"static/escriturais/@deletar/AcoesEmTesouraria-{st.session_state['empresa'].replace('/', '.')} "
@@ -281,4 +278,4 @@ if st.session_state["open_mail"]:
         send_mail()
 
     else:
-        message.warning("Ainda não, primeiro clicar Montar Declaração...", icon=":material/warning:", width=600)
+        st.toast("###### Ainda não, primeiro clicar Montar Declaração...", icon=":material/warning:")

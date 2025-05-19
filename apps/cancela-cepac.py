@@ -19,8 +19,6 @@ from streamlit.connections import SQLConnection
 
 engine: SQLConnection = st.connection(name="DB2", type=SQLConnection)
 
-message = st.empty()
-
 
 def load_extract(join: str, field: str, value: int, active: int) -> pd.DataFrame:
     return engine.query(
@@ -111,10 +109,10 @@ def send_mail() -> None:
                 )
 
             except (smtplib.SMTPConnectError, smtplib.SMTPServerDisconnected):
-                message.error("**Houve falha ao enviar e-mail**", icon=":material/error:", width=600)
+                st.toast("###### Houve falha ao enviar e-mail.", icon=":material/error:")
                 st.stop()
 
-        message.info("**Declaração enviada com sucesso!**", icon=":material/check_circle:", width=600)
+        st.toast("###### Declaração enviada com sucesso!", icon=":material/check_circle:")
 
         with open("static/arquivos/protocolador/protocolador.txt", "a") as save_protocol:
             save_protocol.write(f"{date.today().year}-{last_protocol}-CancelamentoCEPAC-Carta-DAF"
@@ -154,13 +152,11 @@ col2.button("**Preparar E-mail**", key="open_mail", type="primary",
 
 if st.session_state["montar"]:
     if all([st.session_state["mci_client"], st.session_state["cnpj_client"]]):
-        message.warning("**Só pode preencher um dos campos MCI ou CNPJ e não dos dois...**",
-                        icon=":material/warning:", width=600)
+        st.toast("###### Só pode preencher um dos campos MCI ou CNPJ e não dos dois...", icon=":material/warning:")
         st.stop()
 
     if not any([st.session_state["mci_client"], st.session_state["cnpj_client"]]):
-        message.warning("**Deve preencher um dos campos de MCI ou CNPJ...**",
-                        icon=":material/warning:", width=600)
+        st.toast("###### Deve preencher um dos campos de MCI ou CNPJ...", icon=":material/warning:")
         st.stop()
 
     with st.spinner("**:material/hourglass: Preparando para montar PDF, aguarde...**", show_time=True):
@@ -177,8 +173,7 @@ if st.session_state["montar"]:
         extract["data_mvtc"] = pd.to_datetime(extract["data_mvtc"]).dt.strftime("%d.%m.%Y")
 
         if extract.empty:
-            message.info("**Empresa e ativo selecionados não apresentaram movimentações**",
-                         icon=":material/error:", width=600)
+            st.toast("###### Empresa e ativo selecionados não apresentaram movimentações", icon=":material/error:")
             st.stop()
 
         mci_investidor, investidor, cpf_cnpj = load_cadastro(
@@ -255,8 +250,7 @@ if st.session_state["montar"]:
         )
         pdf.build(elements)
 
-        message.info("**Declaração de Cancelamento de CEPAC pronta para enviar e-mail**",
-                     icon=":material/check_circle:", width=600)
+        st.toast("###### Declaração de Cancelamento de CEPAC pronta para enviar e-mail", icon=":material/check_circle:")
 
 if st.session_state["open_mail"]:
     if os.path.exists(f"static/escriturais/@deletar/{date.today().year}-{last_protocol}-CancelamentoCEPAC-Carta-DAF"
@@ -264,4 +258,4 @@ if st.session_state["open_mail"]:
         send_mail()
 
     else:
-        message.warning("Ainda não, primeiro clicar Montar Declaração...", icon=":material/warning:", width=600)
+        st.toast("###### Ainda não, primeiro clicar Montar Declaração...", icon=":material/warning:")

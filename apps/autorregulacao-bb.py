@@ -16,8 +16,6 @@ locale.setlocale(locale.LC_ALL, "pt_BR.UTF-8")
 
 engine: SQLConnection = st.connection(name="DB2", type=SQLConnection)
 
-message = st.empty()
-
 
 def load_evid(_data_pos: date) -> pd.DataFrame:
     return engine.query(
@@ -93,7 +91,7 @@ if st.session_state["btn_ev"]:
     ]
 
     if dfevid.empty:
-        message.info("**Não consta nada na data estabelecida...**", icon=":material/error:", width=600)
+        st.toast("###### Não consta nada na data estabelecida...", icon=":material/error:")
         st.stop()
 
     last_day: date = data_pos - timedelta(days=1)
@@ -135,8 +133,7 @@ if st.session_state["btn_ev"]:
 
     cnv.save()
 
-    message.info("**Arquivo PDF gerado com sucesso e enviado na pasta específica**",
-                 icon=":material/check_circle:", width=600)
+    st.toast("###### Arquivo PDF gerado com sucesso e enviado na pasta específica", icon=":material/check_circle:")
 
 if st.session_state["btn_ac"]:
     data_pos: date = date(
@@ -146,7 +143,7 @@ if st.session_state["btn_ac"]:
     )
 
     if not st.session_state["up_base_aci"]:
-        message.warning("**Ainda não baixou o arquivo 738 correspondente...**", icon=":material/warning:", width=600)
+        st.toast("###### Ainda não baixou o arquivo 738 correspondente...", icon=":material/warning:")
         st.stop()
 
     with st.spinner("**:material/hourglass: Preparando os dados, aguarde...**", show_time=True):
@@ -298,7 +295,7 @@ if st.session_state["btn_ac"]:
     
         arquivo_base_acionaria()
     
-        message.info("**Geração de Excel feita com sucesso!**", icon=":material/check_circle:", width=600)
+        st.toast("###### Geração de Excel feita com sucesso!", icon=":material/check_circle:")
 
 if st.session_state["btn_au"]:
     data_pos = date(
@@ -308,7 +305,7 @@ if st.session_state["btn_au"]:
     ) - timedelta(days=1)
 
     if not all([st.session_state["up_base_738"], st.session_state["up_base_siri"]]):
-        message.warning("**Não subiu os 2 arquivos exigidos...**", icon=":material/warning:", width=600)
+        st.toast("###### Não subiu os 2 arquivos exigidos...", icon=":material/warning:")
         st.stop()
 
     with st.spinner("**:material/hourglass: Preparando os dados, aguarde...**", show_time=True):
@@ -528,4 +525,4 @@ if st.session_state["btn_au"]:
     
         arquivo_siri()
     
-        message.info("**Geração de Excel feita com sucesso!**", icon=":material/check_circle:", width=600)
+        st.toast("###### Geração de Excel feita com sucesso!", icon=":material/check_circle:")

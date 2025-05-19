@@ -6,8 +6,6 @@ from streamlit.connections import SQLConnection
 
 engine: SQLConnection = st.connection(name="DB2", type=SQLConnection)
 
-message = st.empty()
-
 
 @st.cache_data(show_spinner="**:material/hourglass: Carregando a listagem de empresa, aguarde...**")
 def load_active(active: str) -> dict[str, int]:
@@ -150,7 +148,7 @@ if st.session_state["view"]:
             st.button("**Voltar**", key="back_view", type="primary", icon=":material/reply:")
 
         else:
-            message.info(body="**Não há dados para exibir...**", icon=":material/error:", width=600)
+            st.toast("###### Não foram encontrados rendimentos distribuídos da pesquisa...", icon=":material/error:")
 
 if st.session_state["csv"]:
     with st.spinner("**:material/hourglass: Preparando os dados para baixar, aguarde...**", show_time=True):
@@ -169,10 +167,10 @@ if st.session_state["csv"]:
                 icon=":material/download:",
             )
 
-            message.info(body="**Arquivo CSV pronto para baixar**", icon=":material/check_circle:", width=600)
+            st.toast("###### Arquivo CSV pronto para baixar.", icon=":material/check_circle:")
 
         else:
-            message.info(body="**Não há dados para exibir...**", icon=":material/error:", width=600)
+            st.toast("###### Não foram encontrados rendimentos distribuídos da pesquisa...**", icon=":material/error:")
 
 if st.session_state["xlsx"]:
     with st.spinner("**:material/hourglass: Preparando os dados para baixar...**", show_time=True):
@@ -209,7 +207,7 @@ if st.session_state["xlsx"]:
                     get_report[int(3e6):int(4e6)].to_excel(writer, sheet_name="4", index=False)
                     get_report[int(4e6):].to_excel(writer, sheet_name="5", index=False)
 
-            message.info(body="**Arquivo XLSX pronto para baixar**", icon=":material/check_circle:", width=600)
+            st.toast("###### Arquivo XLSX pronto para baixar.", icon=":material/check_circle:")
 
             st.download_button(
                 label="**Baixar XLSX**",
@@ -222,4 +220,4 @@ if st.session_state["xlsx"]:
             )
 
         else:
-            message.info(body="**Não há dados para baixar...**", icon=":material/error:", width=600)
+            st.toast("###### Não foram encontrados rendimentos distribuídos da pesquisa...", icon=":material/error:")

@@ -7,8 +7,6 @@ from streamlit.connections import SQLConnection
 
 engine: SQLConnection = st.connection(name="DB2", type=SQLConnection)
 
-message = st.empty()
-
 
 @st.cache_data(show_spinner="**:material/hourglass: Carregando a listagem da empresa, aguarde...**")
 def load_active(active: str) -> dict[str, int]:
@@ -25,7 +23,7 @@ def load_active(active: str) -> dict[str, int]:
     return {k: v for k, v in zip(load["nom"].to_list(), load["mci"].to_list())}
 
 
-def load_report(_mci: int, _data_ant: date, _data: date):
+def load_report(_mci: int, _data_ant: date, _data: date) -> tuple[pd.DataFrame, list[str]]:
     load: pd.DataFrame = engine.query(
         sql="""
             SELECT
@@ -240,7 +238,8 @@ if st.session_state["view"]:
             st.button(label="**Voltar**", key="back_view", type="primary", icon=":material/reply:")
 
         else:
-            message.info(body="**Não há dados para exibir...**", icon=":material/error:", width=600)
+            st.toast(body="###### Não foram encontrados rendimentos distribuídos da pesquisa...",
+                     icon=":material/error:")
 
 if st.session_state["csv"]:
     with st.spinner("**:material/hourglass: Preparando os dados para baixar, aguarde...**", show_time=True):
@@ -249,12 +248,12 @@ if st.session_state["csv"]:
         if not get_report.empty:
             sigla: str = load_data(mci)[3]
 
-            message.info(body="**Arquivo CSV pronto para baixar**", icon=":material/check_circle:", width=600)
+            st.toast(body="###### Arquivo CSV pronto para baixar", icon=":material/check_circle:")
 
             st.download_button(
                 label="**Baixar CSV**",
                 data=get_report.to_csv(index=False).encode("utf-8"),
-                file_name=f"{sigla}-{st.session_state['data']}.csv",
+                file_name=f"{sigla}-{st.session_state['data']:%d.%m.%Y}.csv",
                 mime="text/csv",
                 key="download_csv",
                 type="primary",
@@ -262,7 +261,8 @@ if st.session_state["csv"]:
             )
 
         else:
-            message.info(body="**Não há dados para baixar...**", icon=":material/error:", width=600)
+            st.toast(body="###### Não foram encontrados rendimentos distribuídos da pesquisa...",
+                     icon=":material/error:")
 
 if st.session_state["xlsx"]:
     with st.spinner("**:material/hourglass: Preparando os dados para baixar, aguarde...**", show_time=True):
@@ -366,12 +366,12 @@ if st.session_state["xlsx"]:
             workbook.close()
             writer.close()
 
-            message.info(body="**Arquivo XLSX pronto para baixar**", icon=":material/check_circle:", width=600)
+            st.toast(body="###### Arquivo XLSX pronto para baixar", icon=":material/check_circle:")
 
             st.download_button(
                 label="**Baixar XLSX**",
                 data=path_xlsx.getvalue(),
-                file_name=f"{get_title[3]}-{st.session_state['data']}.xlsx",
+                file_name=f"{get_title[3]}-{st.session_state['data']:%d.%m.%Y}.xlsx",
                 mime="application/vnd.ms-excel",
                 key="download_xlsx",
                 type="primary",
@@ -379,4 +379,4 @@ if st.session_state["xlsx"]:
             )
 
         else:
-            message.info("**Não há dados para baixar...**", icon=":material/error:", width=600)
+            st.toast("###### Não foram encontrados rendimentos distribuídos da pesquisa...", icon=":material/error:")

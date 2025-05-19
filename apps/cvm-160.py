@@ -5,8 +5,6 @@ from streamlit.connections import SQLConnection
 
 engine: SQLConnection = st.connection(name="DB2", type=SQLConnection)
 
-message = st.empty()
-
 
 @st.cache_data(show_spinner="**Preparando a listagem da empresa, aguarde...**")
 def load_active(active: str) -> dict[str, int]:
@@ -112,7 +110,7 @@ if st.session_state["enviar"]:
         )
 
         if base.empty:
-            message.info(body="**Não há dados para enviar...**", icon=":material/error:", width=600)
+            st.toast("###### Não há dados para enviar...", icon=":material/error:")
 
         else:
             base["pk"] = base.apply(lambda x: f"{x['cpf_cnpj']}-{x['cod_titulo']}", axis=1)
@@ -120,7 +118,7 @@ if st.session_state["enviar"]:
             base = base[base["cpf_cnpj"].ne(60777661000150) & base["cpf_cnpj"].gt(0) & base["quantidade"].ne(0)]
 
             if base.empty:
-                message.info("**Não há dados para enviar...**", icon=":material/error:", width=600)
+                st.toast("###### Não há dados para enviar...", icon=":material/error:")
 
             else:
                 base.reset_index(drop=True, inplace=True)
@@ -142,5 +140,5 @@ if st.session_state["enviar"]:
                     with open(trailer, "a") as f:
                         f.write(f"9 {len(pega) + 1:0>19}{pega['quantidade'].sum():0>17}            ")
 
-                message.info("**Criação de TXT gerada com sucesso, está na pasta específica**",
-                             icon=":material/check_circle:", width=600)
+                st.toast("###### Criação de TXT gerada com sucesso, está na pasta específica.",
+                         icon=":material/check_circle:")

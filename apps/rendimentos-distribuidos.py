@@ -7,8 +7,6 @@ from streamlit.connections import SQLConnection
 
 engine: SQLConnection = st.connection(name="DB2", type=SQLConnection)
 
-message = st.empty()
-
 
 @st.cache_data(show_spinner="**:material/hourglass: Preparando a lista de empresa, aguarde...**")
 def load_active(active: str) -> dict[str, int]:
@@ -158,7 +156,7 @@ if st.session_state["view"]:
             st.button("**Voltar**", key="back_view", type="primary", icon=":material/reply:")
 
         else:
-            message.info(body="**Não há dados para exibir...**", icon=":material/error:", width=600)
+            st.toast("###### Não foram encontrados rendimentos distribuídos da pesquisa...", icon=":material/error:")
 
 if st.session_state["csv"]:
     with st.spinner("**:material/hourglass: Preparando os dados para baixar, aguarde...**", show_time=True):
@@ -167,12 +165,12 @@ if st.session_state["csv"]:
         if not get_report.empty:
             sigla: str = load_data(mci)[3]
 
-            message.info("**Arquivo CSV pronto para baixar**", icon=":material/check_circle:", width=600)
+            st.toast("###### Arquivo CSV pronto para baixar.", icon=":material/check_circle:")
 
             st.download_button(
                 label="**Baixar CSV**",
                 data=get_report.to_csv(index=False).encode("utf-8"),
-                file_name=f"{sigla}-{st.session_state['mês']}-{st.session_state['ano']}-"
+                file_name=f"{sigla}-{st.session_state['mês']:02d}-{st.session_state['ano']}-"
                           f"Rendimentos Distribuídos.csv",
                 mime="text/csv",
                 key="download_csv",
@@ -181,7 +179,7 @@ if st.session_state["csv"]:
             )
 
         else:
-            message.info(body="**Não há dados para baixar...**", icon=":material/error:", width=600)
+            st.toast("###### Não foram encontrados rendimentos distribuídos da pesquisa...", icon=":material/error:")
 
 if st.session_state["xlsx"]:
     with st.spinner("**:material/hourglass: Preparando os dados para baixar...**", show_time=True):
@@ -218,12 +216,13 @@ if st.session_state["xlsx"]:
                     get_report[int(3e6):int(4e6)].to_excel(writer, sheet_name="4", index=False)
                     get_report[int(4e6):].to_excel(writer, sheet_name="5", index=False)
 
-            message.info(body="**Arquivo XLSX pronto para baixar**", icon=":material/check_circle:", width=600)
+            st.toast("###### Arquivo XLSX pronto para baixar.", icon=":material/check_circle:")
 
             st.download_button(
                 label="**Baixar XLSX**",
                 data=path_xls.getvalue(),
-                file_name=f"{sigla}-{st.session_state['mês']}-{st.session_state['ano']}-Rendimentos Distribuídos.xlsx",
+                file_name=f"{sigla}-{st.session_state['mês']:02d}-{st.session_state['ano']}-"
+                          f"Rendimentos Distribuídos.xlsx",
                 mime="application/vnd.ms-excel",
                 key="download_xlsx",
                 type="primary",
@@ -231,4 +230,4 @@ if st.session_state["xlsx"]:
             )
 
         else:
-            message.info(body="**Não há dados para baixar...**", icon=":material/error:", width=600)
+            st.toast("###### Não foram encontrados rendimentos distribuídos da pesquisa...", icon=":material/error:")

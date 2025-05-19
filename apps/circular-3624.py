@@ -7,8 +7,6 @@ from streamlit.connections import SQLConnection
 
 engine: SQLConnection = st.connection(name="DB2", type=SQLConnection)
 
-message = st.empty()
-
 
 def load_data(year: int, month: int) -> pd.DataFrame:
     return engine.query(
@@ -47,7 +45,7 @@ def preparo_xlsx(year: int, month: int) -> None:
     xlsx: pd.DataFrame = load_data(year, month)
 
     if xlsx.empty:
-        message.info(body="**Não há dados para enviar**", icon=":material/error:", width=600)
+        st.toast("###### Não há dados para enviar...", icon=":material/error:")
         st.stop()
 
     with st.spinner("**:material/hourglass: Preparando os dados para enviar, aguarde...**", show_time=True):
@@ -344,4 +342,4 @@ if st.session_state["mail"]:
         preparo_xlsx(st.session_state["ano"], st.session_state["mês"])
 
     else:
-        message.warning("**Deve preencher o e-mail...**", icon=":material/warning:", width=600)
+        st.toast("###### Deve preencher o e-mail.", icon=":material/warning:")

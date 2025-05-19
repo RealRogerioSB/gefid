@@ -7,8 +7,6 @@ from streamlit.connections import SQLConnection
 
 engine: SQLConnection = st.connection("DB2", type=SQLConnection)
 
-message = st.empty()
-
 
 @st.cache_data(show_spinner="**:material/hourglass: Preparando a listagem da empresa, aguarde...**")
 def load_active(active: str) -> dict[str, int]:
@@ -82,13 +80,13 @@ if st.button("**Gerar DIPJ**", type="primary", icon=":material/save:"):
 
         # Verificando se foram localizados 12 arquivos *.PAGO no diretório
         if len(all_files) < 12:
-            message.warning("**Tem menos de 12 arquivos de rendimentos pagos no diretório.Favor corrigir e reiniciar**",
-                            icon=":material/warning:", width=600)
+            st.toast("###### Tem menos de 12 arquivos de rendimentos pagos no diretório.Favor corrigir e reiniciar.",
+                            icon=":material/warning:")
             st.stop()
 
         if len(all_files) > 12:
-            message.warning("**Tem mais de 12 arquivos de rendimentos pagos no diretório.Favor corrigir e reiniciar**",
-                            icon=":material/warning:", width=600)
+            st.toast("###### Tem mais de 12 arquivos de rendimentos pagos no diretório.Favor corrigir e reiniciar.",
+                            icon=":material/warning:")
             st.stop()
 
         li = []
@@ -130,16 +128,15 @@ if st.button("**Gerar DIPJ**", type="primary", icon=":material/save:"):
 
         # Verificando se todos os arquivos são do mesmo ano e guardando o ano caso
         if len(dfs["Ano Ref"].unique()) == 1:
-            message.info("**Não achamos ninguém**", icon=":material/warning:", width=600)
+            st.toast("###### Não achamos ninguém...", icon=":material/warning:")
             st.stop()
 
         # Verificando se todos os arquivos são do mesmo ano e guardando o ano caso
         if len(dfs["Ano Ref"].unique()) > 2:
             dfs.drop(labels=[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11], axis=0, inplace=True)
 
-            message.warning(f"**Identificamos arquivos de anos diferentes {dfs['Ano Ref'].unique()}.\nTodos os"
-                            f" arquivos precisam ser do mesmo ano.\nIremos encerrar o processo.**",
-                            icon=":material/warning:", width=600)
+            st.toast(f"###### Identificamos arquivos de anos diferentes {dfs['Ano Ref'].unique()}.\nTodos os "
+                     f"arquivos precisam ser do mesmo ano.\nIremos encerrar o processo.", icon=":material/warning:")
             st.stop()
 
         table = pd.pivot_table(dfs, values=["Vlr Bruto", "Vlr IR", "Vlr Líquido"],
@@ -400,4 +397,4 @@ if st.button("**Gerar DIPJ**", type="primary", icon=":material/save:"):
 
         workbook.close()
 
-        message.info("**Feito! O arquivo já está na pasta específica**", icon=":material/check_circle:", width=600)
+        st.toast("###### Feito! O arquivo já está na pasta específica.", icon=":material/check_circle:")

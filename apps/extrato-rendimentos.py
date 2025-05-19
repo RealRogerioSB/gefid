@@ -9,8 +9,6 @@ locale.setlocale(locale.LC_ALL, "pt_BR.UTF-8")
 
 engine: SQLConnection = st.connection(name="DB2", type=SQLConnection)
 
-message = st.empty()
-
 
 @st.cache_data(show_spinner="**:material/hourglass: Preparando a listagem da empresa, aguarde...**")
 def load_client() -> dict[str, int]:
@@ -45,7 +43,7 @@ def load_extrato(field: str, _mci: int, value: int | str) -> pd.DataFrame:
         sql=f"""
             SELECT
                 t1.CD_TIP_TIT AS TIPO,
-                CAST(t1.DT_MVT_DRT AS DATE) AS DATA,
+                t1.DT_MVT_DRT AS DATA_MVT,
                 CAST(t1.QT_MVT_REN AS INT) AS QUANTIDADE,
                 CAST(t1.VL_MVT_REN AS FLOAT) AS VALOR,
                 CAST(t1.VL_IR_CLCD_MVT_REN AS FLOAT) AS VALOR_IR,
@@ -103,12 +101,12 @@ if st.session_state["pesquisar"]:
 
         if not any([st.session_state["nome_investidor"], st.session_state["mci_investidor"],
                     st.session_state["cpf_cnpj_investidor"]]):
-            message.warning("**Deve preencher ao menos 1 campo abaixo**", icon=":material/warning:", width=600)
+            st.toast("###### Deve preencher ao menos 1 campo abaixo.", icon=":material/warning:")
             st.stop()
 
         if all([st.session_state["nome_investidor"], st.session_state["mci_investidor"],
                 st.session_state["cpf_cnpj_investidor"]]):
-            message.warning("**Só deve preencher 1 campo abaixo**", icon=":material/warning:", width=600)
+            st.toast("###### Só deve preencher 1 campo abaixo.", icon=":material/warning:")
             st.stop()
 
         with st.spinner("**:material/hourglass: Pesquisando os dados, aguarde...**", show_time=True):
@@ -137,7 +135,7 @@ if st.session_state["pesquisar"]:
                     use_container_width=True,
                     column_config={
                         "tipo": st.column_config.NumberColumn("Tipo"),
-                        "DATA": st.column_config.DateColumn("Data", format="DD.MM.YYYY"),
+                        "data_mvt": st.column_config.DateColumn("Data", format="DD/MM/YYYY"),
                         "quantidade": st.column_config.NumberColumn("Quantidade"),
                         "valor": st.column_config.NumberColumn("Valor", format="dollar"),
                         "valor_ir": st.column_config.NumberColumn("Valor IR", format="dollar"),
@@ -151,5 +149,4 @@ if st.session_state["pesquisar"]:
                 st.button("**Voltar**", key="back", type="primary", icon=":material/reply:")
 
             else:
-                message.info("**Não foram encontrados rendimentos para a pesquisa realizada**",
-                             icon=":material/error:", width=600)
+                st.toast("###### Não foram encontrados rendimentos para a pesquisa realizada.", icon=":material/error:")

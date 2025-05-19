@@ -19,8 +19,6 @@ from streamlit.connections import SQLConnection
 
 engine: SQLConnection = st.connection(name="DB2", type=SQLConnection)
 
-message = st.empty()
-
 
 @st.cache_data(show_spinner="**:material/hourglass: Preparando a listagem da empresa, aguarde...**")
 def load_client() -> dict[str, int]:
@@ -146,6 +144,8 @@ def send_mail() -> None:
         if not any([st.session_state["to_addr"], st.session_state["cc_addr"]]):
             st.stop()
 
+        message = st.empty()
+
         msg = MIMEMultipart()
         msg["From"] = "aescriturais@bb.com.br"
         msg["To"] = st.session_state["to_addr"]
@@ -187,10 +187,10 @@ def send_mail() -> None:
                 )
 
             except (smtplib.SMTPConnectError, smtplib.SMTPServerDisconnected):
-                message.error("**Houve falha ao enviar e-mail**", icon=":material/error:", width=600)
+                message.error("**Houve falha ao enviar e-mail...**", icon=":material/error:")
                 st.stop()
 
-        message.info("**Declaração enviada com sucesso!**", icon=":material/check_circle:", width=600)
+        message.info("**Declaração enviada com sucesso!**", icon=":material/check_circle:")
 
         with open("static/arquivos/protocolador/protocolador.txt", "a") as save_protocol:
             save_protocol.write(f"{date.today().year}-{last_protocol}-MaioresInvestidores - {nome_empresa}")
@@ -235,7 +235,7 @@ if st.session_state["montar"]:
             .rename(columns={"investidor": "INVESTIDOR", "cpf_cnpj": "CPF_CNPJ", "sigla": "SIGLA", "qtd": "QTD"})
 
         if base.empty:
-            message.info("**Não há dados para montar a declaração...**", icon=":material/warning:", width=600)
+            st.toast("###### Não há dados para montar a declaração...**", icon=":material/warning:")
             st.stop()
 
         base["pk"] = base.apply(lambda x: f"{x['mci']}-{x['cod_titulo']}-{x['custodiante']}", axis=1)
@@ -320,8 +320,7 @@ if st.session_state["montar"]:
         )
         pdf.build(elements)
 
-        message.info("**Declaração gerada com sucesso! Pode clicar Preparar E-mail**",
-                     icon=":material/check_circle:", width=600)
+        st.toast("###### Declaração gerada com sucesso! Pode clicar Preparar E-mail.", icon=":material/check_circle:")
 
 if st.session_state["open_mail"]:
     if os.path.exists(f"static/escriturais/@deletar/{date.today().year}-{last_protocol}-"
@@ -330,4 +329,4 @@ if st.session_state["open_mail"]:
         send_mail()
 
     else:
-        message.warning("Ainda não, primeiro clicar Montar Declaração...", icon=":material/warning:", width=600)
+        st.toast("###### Ainda não, primeiro clicar Montar Declaração...", icon=":material/warning:")

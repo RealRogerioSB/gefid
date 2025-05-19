@@ -9,8 +9,6 @@ from unidecode import unidecode
 
 engine: SQLConnection = st.connection(name="DB2", type=SQLConnection)
 
-message = st.empty()
-
 
 def get_join_email(key: str, value: int | str) -> pd.DataFrame:
     return engine.query(
@@ -138,12 +136,12 @@ with st.container():
 if st.session_state["search"]:
     if all([st.session_state["nome_inv"], st.session_state["mci_inv"], st.session_state["cpf_cnpj"],
             st.session_state["mail_inv"]]):
-        message.warning("**Deve preencher somente um campo para pesquisar**", icon=":material/warning:", width=600)
+        st.toast("###### Deve preencher somente um campo para pesquisar.", icon=":material/warning:")
         st.stop()
 
     if not any([st.session_state["nome_inv"], st.session_state["mci_inv"], st.session_state["cpf_cnpj"],
                 st.session_state["mail_inv"]]):
-        message.warning("**Precisa digitar um campo qualquer para pesquisar**", icon=":material/warning:", width=600)
+        st.toast("###### Precisa digitar um campo qualquer para pesquisar.", icon=":material/warning:")
         st.stop()
 
     with st.spinner(text=":material/hourglass: Obtendo os dados, aguarde...", show_time=True):
@@ -162,7 +160,7 @@ if st.session_state["search"]:
                     get_b3("mci_investidor", re.sub(r"\D", "", st.session_state["mci_inv"]))
                 )
             else:
-                message.warning("**O campo MCI está inválido...**", icon=":material/warning:", width=600)
+                st.toast("###### O campo MCI está inválido...", icon=":material/warning:")
 
         elif st.session_state["cpf_cnpj"] != "":
             if re.sub(r"\D", "", st.session_state["cpf_cnpj"]):
@@ -172,7 +170,7 @@ if st.session_state["search"]:
                     get_b3("cpf_cnpj", re.sub("\D", "", st.session_state["cpf_cnpj"]))
                 )
             else:
-                message.warning("**O Campo CPF / CNPJ está inválido...**", icon=":material/warning:", width=600)
+                st.toast("###### O Campo CPF / CNPJ está inválido...", icon=":material/warning:")
 
         elif st.session_state["mail_inv"] != "":
             report(

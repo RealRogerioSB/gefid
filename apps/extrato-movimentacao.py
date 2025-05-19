@@ -5,59 +5,6 @@ from unidecode import unidecode
 
 engine: SQLConnection = st.connection(name="DB2", type=SQLConnection)
 
-message = st.empty()
-
-stmt_load_nome: str = """
-    SELECT
-        t1.CD_TIP_TIT AS TIPO,
-        CAST(t1.DT_MVTC AS DATE) AS DATA,
-        CAST(t1.QT_TIT_MVTD AS INT) AS MOVIMENTO,
-        CAST(t1.QT_TIT_ATU AS INT) AS SALDO,
-        t1.CD_CLI_CSTD AS MCI_CUSTODIANTE
-    FROM
-        DB2AEB.MVTC_DIAR_PSC t1
-        LEFT JOIN DB2MCI.CLIENTE AS t2
-            ON t2.COD = t1.CD_CLI_EMT
-    WHERE
-        t1.CD_CLI_EMT = :mci AND
-        t2.NOM = :value
-    ORDER BY
-        t1.DT_MVTC
-"""
-
-stmt_load_mci: str = """
-    SELECT t1.CD_TIP_TIT AS TIPO,
-        CAST(t1.DT_MVTC AS DATE) AS DATA,
-        CAST(t1.QT_TIT_MVTD AS INT) AS MOVIMENTO,
-        CAST(t1.QT_TIT_ATU AS INT) AS SALDO,
-        t1.CD_CLI_CSTD AS MCI_CUSTODIANTE
-    FROM
-        DB2AEB.MVTC_DIAR_PSC t1
-    WHERE
-        t1.CD_CLI_EMT = :mci AND
-        t1.CD_CLI_ACNT = :value
-    ORDER BY
-        t1.DT_MVTC
-"""
-
-stmt_load_cpf_cgc: str = """
-    SELECT
-        t1.CD_TIP_TIT AS TIPO,
-        CAST(t1.DT_MVTC AS DATE) AS DATA,
-        CAST(t1.QT_TIT_MVTD AS INT) AS MOVIMENTO,
-        CAST(t1.QT_TIT_ATU AS INT) AS SALDO,
-        t1.CD_CLI_CSTD AS MCI_CUSTODIANTE
-    FROM
-        DB2AEB.MVTC_DIAR_PSC t1
-        INNER JOIN DB2MCI.CLIENTE AS t2
-            ON t2.COD = t1.CD_CLI_EMT
-    WHERE
-        t1.CD_CLI_EMT = :mci AND
-        t2.COD_CPF_CGC = :value
-    ORDER BY
-        t1.DT_MVTC
-"""
-
 
 @st.cache_data(show_spinner="**:material/hourglass: Preparando a listagem da empresa, aguarde...**")
 def load_client() -> dict[str, int]:
@@ -74,20 +21,20 @@ def load_client() -> dict[str, int]:
     return {k: v for k, v in zip(load["nom"].to_list(), load["mci"].to_list())}
 
 
-def load_empresa(key: str, value: int | str) -> pd.DataFrame:
+def load_empresa(field: str, value: int | str) -> pd.DataFrame:
     return engine.query(
         sql=f"""
             SELECT
-                t1.COD AS mci_empresa,
-                STRIP(t1.NOM) AS nm_empresa,
+                COD AS MCI_EMPRESA,
+                STRIP(NOM) AS NOME_EMPRESA,
                 CASE
-                    WHEN t1.COD_TIPO = 2 THEN LPAD(t1.COD_CPF_CGC, 14, '0')
-                    ELSE LPAD(t1.COD_CPF_CGC, 11, '0')
-                END AS cnpj_empresa
+                    WHEN COD_TIPO = 2 THEN LPAD(COD_CPF_CGC, 14, '0')
+                    ELSE LPAD(COD_CPF_CGC, 11, '0')
+                END AS CNPJ_EMPRESA
             FROM
-                DB2MCI.CLIENTE t1
+                DB2MCI.CLIENTE
             WHERE
-                t1.{key.upper()} = :value
+                {field.upper()} = :value
         """,
         show_spinner=False,
         ttl=0,
@@ -95,21 +42,35 @@ def load_empresa(key: str, value: int | str) -> pd.DataFrame:
     )
 
 
-def load_extrato(n_load: int, _mci: int, value: int | str) -> pd.DataFrame:
+def load_extrato(join: str, field: str, _mci: int, value: int | str) -> pd.DataFrame:
     return engine.query(
-        sql=stmt_load_nome if n_load == 0 else stmt_load_mci if n_load == 1 else stmt_load_cpf_cgc,
+        sql=f"""
+            SELECT
+                t0.SG_TIP_TIT AS SIGLA,
+                t1.CD_TIP_TIT AS TIPO,
+                t1.DT_MVTC AS DATA_MVTC,
+                SUM(CAST(t1.QT_TIT_MVTD AS BIGINT)) AS MOVIMENTO,
+                SUM(CAST(t1.QT_TIT_ATU AS BIGINT)) AS SALDO,
+                CAST(SUM(t1.QT_TIT_ATU - t1.QT_TIT_MVTD) AS BIGINT) AS SALDO_ANTERIOR,
+                t1.CD_CLI_CSTD AS MCI_CUSTODIANTE
+            FROM
+                DB2AEB.TIP_TIT t0
+                RIGHT JOIN DB2AEB.MVTC_DIAR_PSC t1
+                    ON t1.CD_TIP_TIT = t0.CD_TIP_TIT{join}
+            WHERE
+                t1.CD_CLI_EMT = :mci AND
+                {field} = :value
+            GROUP BY
+                t1.CD_TIP_TIT,
+                t1.DT_MVTC,
+                t1.CD_CLI_CSTD,
+                t0.SG_TIP_TIT
+            ORDER BY
+                t1.DT_MVTC
+        """,
         show_spinner=False,
         ttl=0,
         params=dict(mci=_mci, value=value)
-    )
-
-
-def load_tipo(_tipo: int) -> pd.DataFrame:
-    return engine.query(
-        sql="SELECT t1.SG_TIP_TIT FROM DB2AEB.TIP_TIT t1 WHERE t1.CD_TIP_TIT = :tipo",
-        show_spinner=False,
-        ttl=0,
-        params=dict(tipo=_tipo)
     )
 
 
@@ -121,12 +82,12 @@ with st.columns(2)[0]:
     kv: dict[str, int] = load_client()
 
     st.selectbox(label="**Empresa:**", options=kv.keys(), key="empresa")
-    st.text_input(label="**Nome Investidor:**", max_chars=100, key="nome_investidor")
+    st.text_input(label="**Nome Investidor:**", max_chars=100, key="nome_inv")
 
     col = st.columns([1.3, 1.6, 1.4])
 
-    col[0].number_input(label="**MCI:**", min_value=0, max_value=9999999999, key="mci_investidor")
-    col[1].number_input(label="**CPF/CNPJ:**", min_value=0, max_value=99999999999999, key="cpf_cnpj_investidor")
+    col[0].number_input(label="**MCI:**", min_value=0, max_value=9999999999, key="mci_inv")
+    col[1].number_input(label="**CPF/CNPJ:**", min_value=0, max_value=99999999999999, key="cpf_cnpj_inv")
     col[2].selectbox(label="**Custodiante:**", options=["Ambas", "Banco do Brasil", "B3"], key="custodiante")
 
     st.button(label="**Pesquisar**", key="search", type="primary", icon=":material/search:")
@@ -137,98 +98,77 @@ if st.session_state["search"]:
     idx_custodia: int = 0 if st.session_state["custodiante"] == "Ambas" \
         else 903485186 if st.session_state["custodiante"] == "Banco do Brasil" else 205007939
 
-    if not any([st.session_state["nome_investidor"], st.session_state["mci_investidor"],
-                st.session_state["cpf_cnpj_investidor"]]):
-        message.warning("**Deve preencher ao menos um dos campos abaixo**", icon=":material/warning:", width=600)
+    if all([st.session_state["nome_inv"], st.session_state["mci_inv"], st.session_state["cpf_cnpj_inv"]]):
+        st.toast("###### Só deve preencher um dos campos abaixo", icon=":material/warning:")
+        st.stop()
+
+    if not any([st.session_state["nome_inv"], st.session_state["mci_inv"], st.session_state["cpf_cnpj_inv"]]):
+        st.toast("###### Deve preencher ao menos um dos campos abaixo", icon=":material/warning:")
         st.stop()
 
     with st.spinner("**:material/hourglass: Preparando os dados para exibir, aguarde...**", show_time=True):
         cliente: pd.DataFrame = load_empresa("cod", mci)
 
         investidor: pd.DataFrame = load_empresa(
-            key="nom" if st.session_state["nome_investidor"]
-            else "cod" if st.session_state["mci_investidor"]
+            field="nom" if st.session_state["nome_inv"] else "cod" if st.session_state["mci_inv"]
             else "cod_cpf_cgc",
-            value=unidecode(st.session_state["nome_investidor"]).upper() if st.session_state["nome_investidor"]
-            else st.session_state["mci_investidor"] if st.session_state["mci_investidor"]
-            else st.session_state["cpf_cnpj_investidor"],
+            value=unidecode(st.session_state["nome_inv"]).upper() if st.session_state["nome_inv"]
+            else st.session_state["mci_inv"] if st.session_state["mci_inv"]
+            else st.session_state["cpf_cnpj_inv"],
         )
 
         extrato: pd.DataFrame = load_extrato(
-            n_load=0 if st.session_state["nome_investidor"] else 1 if st.session_state["mci_investidor"] else 2,
+            join=" LEFT JOIN DB2MCI.CLIENTE t2 ON t2.COD = t1.CD_CLI_EMT" if st.session_state["nome_inv"]
+            else "" if st.session_state["mci_inv"] else " INNER JOIN DB2MCI.CLIENTE t2 ON t2.COD = t1.CD_CLI_EMT",
+            field="t2.NOM" if st.session_state["nome_inv"] else "t1.COD" if st.session_state["mci_inv"]
+            else "t2.COD_CPF_CGC",
             _mci=mci,
-            value=unidecode(st.session_state["nome_investidor"]).upper() if st.session_state["nome_investidor"]
-            else st.session_state["mci_investidor"] if st.session_state["mci_investidor"]
-            else st.session_state["cpf_cnpj_investidor"],
+            value=unidecode(st.session_state["nome_inv"]).upper() if st.session_state["nome_inv"]
+            else st.session_state["mci_inv"] if st.session_state["mci_inv"]
+            else st.session_state["cpf_cnpj_inv"],
         )
 
-        if idx_custodia != 0:
-            extrato = extrato[extrato["mci_custodiante"].eq(idx_custodia)]
-
-        extrato["pk"] = extrato["tipo"] + extrato["mci_custodiante"]
-        extratos = extrato["pk"].drop_duplicates().to_list()
-
-        saldo_anteriores: list[int] = []
-        custodiantes: list[str] = []
-        tipos: list[str] = []
+        extrato = extrato[extrato["mci_custodiante"].eq(idx_custodia)] if idx_custodia != 0 else extrato
 
         if extrato.empty:
-            message.info("**Não ocorreram movimentações nos últimos 12 meses**", icon=":material/error:", width=600)
-            st.stop()
+            st.toast("###### Não ocorreram movimentações nos últimos 12 meses.", icon=":material/error:")
 
-        for _extrato in extratos:
-            consulta: pd.DataFrame = extrato[extrato["pk"].eq(_extrato)].copy()
-            consulta.reset_index(inplace=True)
+        else:
+            with st.columns(2)[0]:
+                st.dataframe(
+                    data=cliente,
+                    hide_index=True,
+                    use_container_width=True,
+                    column_config={
+                        "mci_empresa": st.column_config.NumberColumn(label="MCI"),
+                        "nome_empresa": st.column_config.TextColumn(label="Empresa"),
+                        "cnpj_empresa": st.column_config.TextColumn(label="CNPJ"),
+                    },
+                )
 
-            saldo_anteriores.append(consulta["saldo"][0] - consulta["movimento"][0])
+                st.dataframe(
+                    data=investidor,
+                    hide_index=True,
+                    use_container_width=True,
+                    column_config={
+                        "mci_empresa": st.column_config.NumberColumn(label="MCI"),
+                        "nome_empresa": st.column_config.TextColumn(label="Investidor"),
+                        "cnpj_empresa": st.column_config.TextColumn(label="CPF/CNPJ"),
+                    },
+                )
 
-            if consulta["mci_custodiante"][0] == 903485186:
-                custodiantes.append("Banco do Brasil")
-            elif consulta["mci_custodiante"][0] == 205007939:
-                custodiantes.append("B3")
+                st.dataframe(
+                    data=extrato,
+                    hide_index=True,
+                    use_container_width=True,
+                    column_config={
+                        "sigla": st.column_config.TextColumn(label="Sigla"),
+                        "data_mvtc": st.column_config.DateColumn(label="Data", format="DD/MM/YYYY"),
+                        "movimento": st.column_config.NumberColumn(label="Movimento"),
+                        "saldo": st.column_config.NumberColumn(label="Saldo"),
+                        "saldo_anterior": st.column_config.NumberColumn(label="Saldo Anterior"),
+                        "mci_custodiante": st.column_config.NumberColumn(label="MCI de Custodiante"),
+                    },
+                )
 
-            tipo = consulta["tipo"].iloc[0]
-            tipo = engine.query(
-                sql="SELECT t1.SG_TIP_TIT FROM DB2AEB.TIP_TIT t1 WHERE t1.CD_TIP_TIT = :tipo",
-                show_spinner="**:material/hourglass: Obtendo os dados, aguarde...**",
-                ttl=0,
-                params=dict(tipo=tipo)
-            )
-            tipos.append(tipo["sg_tip_tit"][0])
-
-            consulta.drop(["tipo", "mci_custodiante", "pk"], axis=1, inplace=True)
-
-        with st.columns(2)[0]:
-            st.dataframe(
-                data=cliente,
-                hide_index=True,
-                column_config={
-                    "mci_empresa": st.column_config.NumberColumn(label="MCI Empresa"),
-                    "nm_empresa": st.column_config.TextColumn(label="Empresa"),
-                    "cnpj_empresa": st.column_config.TextColumn(label="CNPJ"),
-                },
-            )
-
-            st.dataframe(
-                data=investidor,
-                hide_index=True,
-                column_config={
-                    "mci_empresa": st.column_config.NumberColumn(label="MCI Investidor"),
-                    "nm_empresa": st.column_config.TextColumn(label="Investidor"),
-                    "cnpj_empresa": st.column_config.TextColumn(label="CPF/CNPJ"),
-                },
-            )
-
-            st.dataframe(
-                data=extrato,
-                hide_index=True,
-                column_config={
-                    "tipo": st.column_config.NumberColumn(label="Tipo"),
-                    "DATA": st.column_config.DateColumn(label="Data", format="DD/MM/YYYY"),
-                    "movimento": st.column_config.NumberColumn(label="Movimento"),
-                    "saldo": st.column_config.NumberColumn(label="Saldo"),
-                    "mci_custodiante": st.column_config.NumberColumn(label="MCI de Custodiante"),
-                },
-            )
-
-        st.button("**Voltar**", type="primary", icon=":material/reply:")
+            st.button("**Voltar**", type="primary", icon=":material/reply:")
