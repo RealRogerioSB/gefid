@@ -6,7 +6,8 @@ textColor="#000000"
 secondaryBackgroundColor="#dbe1f5"
 
 [client]
-showSidebarNavigation = true
+showSidebarNavigation=true
 
 [server]
-maxUploadSize = 1000
+maxUploadSize=1000
+maxMessageSize=1000
