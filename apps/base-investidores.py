@@ -109,9 +109,11 @@ def load_report(_mci: int, _data_ant: date, _data: date) -> tuple[pd.DataFrame, 
         params=dict(mci=_mci, data_ant=_data_ant, data=_data.strftime("%Y-%m-%d")),
     )
     load.columns = [str(columns).upper() for columns in load.columns]
+    load["PK"] = load.apply(lambda xy: f"{xy['MCI']}-{xy['COD_TITULO']}-{xy['CUSTODIANTE']}", axis=1)
+    load = load.groupby(["PK"]).first()
     load["COD_TITULO"] = load["COD_TITULO"].astype(str)
     load = load[~load["MCI"].isin([205007939, 211684707]) & load["QUANTIDADE"].ne(0)]
-    load.reset_index(inplace=True)
+    load.reset_index(drop=True, inplace=True)
 
     dfixo = load[["MCI", "INVESTIDOR", "CPF_CNPJ", "TIPO"]].copy()
     dfixo.drop_duplicates(subset=["MCI"], inplace=True)
@@ -120,7 +122,7 @@ def load_report(_mci: int, _data_ant: date, _data: date) -> tuple[pd.DataFrame, 
 
     for xx in (load["COD_TITULO"] + load["SIGLA"]).unique():
         dfx = load.loc[(load["COD_TITULO"] + load["SIGLA"]) == xx].copy()
-        dfx.reset_index(inplace=True)
+        dfx.reset_index(drop=True, inplace=True)
 
         tipo = f"{dfx['SIGLA'].iloc[0]} {dfx['COD_TITULO'].iloc[0]}"
 
@@ -205,6 +207,8 @@ with st.columns(2)[0]:
     col[1].button(label="**Baixar CSV**", key="csv", icon=":material/download:", **params)
     col[2].button(label="**Baixar Excel**", key="xlsx", icon=":material/download:", **params)
 
+    st.markdown("")
+
 if st.session_state["view"]:
     with st.spinner("**:material/hourglass: Preparando os dados para exibir, aguarde...**", show_time=True):
         get_report: pd.DataFrame = load_report(mci, data_ant, st.session_state["data"])[0]
@@ -216,6 +220,8 @@ if st.session_state["view"]:
             st.write(f"**Empresa:** {get_title[1]}")
             st.write(f"**CNPJ:** {get_title[2]}")
             st.write(f"**Data:** {st.session_state['data']:%d/%m/%Y}")
+
+            st.markdown("")
 
             st.data_editor(
                 data=get_report,

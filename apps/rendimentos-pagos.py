@@ -89,13 +89,13 @@ def load_data(_mci: int) -> tuple[str, ...]:
     return str(load["mci"].iloc[0]), load["empresa"].iloc[0], load["cnpj"].iloc[0], load["sigla"].iloc[0]
 
 
-st.subheader(":material/paid: Rendimentos Pagos")
-
-st.radio(label="**Situação de Clientes:**", options=["ativos", "inativos"], key="option")
-
-kv: dict[str, int] = load_active("NULL") if st.session_state["option"] == "ativos" else load_active("NOT NULL")
-
 with st.columns(2)[0]:
+    st.subheader(":material/paid: Rendimentos Pagos")
+
+    st.radio(label="**Situação de Clientes:**", options=["ativos", "inativos"], key="option")
+
+    kv: dict[str, int] = load_active("NULL") if st.session_state["option"] == "ativos" else load_active("NOT NULL")
+
     st.selectbox(
         label="**Clientes ativos:**" if st.session_state["option"] == "ativos" else "**Clientes inativos:**",
         options=kv.keys(),
@@ -117,6 +117,8 @@ with st.columns(2)[0]:
     col[1].button(label="**Baixar CSV**", key="csv", icon=":material/download:", **params)
     col[2].button(label="**Baixar Excel**", key="xlsx", icon=":material/download:", **params)
 
+    st.markdown("")
+
 if st.session_state["view"]:
     with st.spinner("**:material/hourglass: Preparando os dados para exibir, aguarde...**", show_time=True):
         get_view: pd.DataFrame = load_report(mci, st.session_state["ano"], st.session_state["mês"])
@@ -133,6 +135,8 @@ if st.session_state["view"]:
                      .replace(".", ",").replace("_", "."))
             st.write(f"**TOTAL LÍQUIDO:** R$ {float(get_view['valor_liquido'].sum()):_.2f}"
                      .replace(".", ",").replace("_", "."))
+
+            st.markdown("")
 
             st.data_editor(
                 data=get_view,

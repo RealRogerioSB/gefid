@@ -92,6 +92,8 @@ with st.columns(2)[0]:
 
     st.button(label="**Pesquisar**", key="search", type="primary", icon=":material/search:")
 
+    st.markdown("")
+
 if st.session_state["search"]:
     mci: int = kv.get(st.session_state["empresa"])
 
@@ -120,7 +122,7 @@ if st.session_state["search"]:
         extrato: pd.DataFrame = load_extrato(
             join=" LEFT JOIN DB2MCI.CLIENTE t2 ON t2.COD = t1.CD_CLI_EMT" if st.session_state["nome_inv"]
             else "" if st.session_state["mci_inv"] else " INNER JOIN DB2MCI.CLIENTE t2 ON t2.COD = t1.CD_CLI_EMT",
-            field="t2.NOM" if st.session_state["nome_inv"] else "t1.COD" if st.session_state["mci_inv"]
+            field="t2.NOM" if st.session_state["nome_inv"] else "t1.CD_CLI_ACNT" if st.session_state["mci_inv"]
             else "t2.COD_CPF_CGC",
             _mci=mci,
             value=unidecode(st.session_state["nome_inv"]).upper() if st.session_state["nome_inv"]
@@ -135,27 +137,19 @@ if st.session_state["search"]:
 
         else:
             with st.columns(2)[0]:
-                st.dataframe(
-                    data=cliente,
-                    hide_index=True,
-                    use_container_width=True,
-                    column_config={
-                        "mci_empresa": st.column_config.NumberColumn(label="MCI"),
-                        "nome_empresa": st.column_config.TextColumn(label="Empresa"),
-                        "cnpj_empresa": st.column_config.TextColumn(label="CNPJ"),
-                    },
-                )
+                col1, col2 = st.columns(2, border=True)
 
-                st.dataframe(
-                    data=investidor,
-                    hide_index=True,
-                    use_container_width=True,
-                    column_config={
-                        "mci_empresa": st.column_config.NumberColumn(label="MCI"),
-                        "nome_empresa": st.column_config.TextColumn(label="Investidor"),
-                        "cnpj_empresa": st.column_config.TextColumn(label="CPF/CNPJ"),
-                    },
-                )
+                with col1:
+                    st.markdown(f"**Empresa:**: {cliente['nome_empresa'].iloc[0]}")
+                    st.markdown(f"**MCI:**: {cliente['mci_empresa'].iloc[0]}")
+                    st.markdown(f"**CNPJ:**: {cliente['cnpj_empresa'].iloc[0]}")
+
+                with col2:
+                    st.markdown(f"**Investidor:**: {investidor['nome_empresa'].iloc[0]}")
+                    st.markdown(f"**MCI:**: {investidor['mci_empresa'].iloc[0]}")
+                    st.markdown(f"**CPF/CNPJ:**: {investidor['cnpj_empresa'].iloc[0]}")
+
+                st.markdown("")
 
                 st.dataframe(
                     data=extrato,

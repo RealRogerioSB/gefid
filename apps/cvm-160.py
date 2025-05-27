@@ -130,7 +130,7 @@ if st.session_state["enviar"]:
                     pega = base[base["cod_titulo"].eq(row)].copy()
 
                     pega["listar"] = pega.apply(lambda x: f"{x['tipo']}{x['pss']}{x['cpf_cnpj']:0>19}"
-                                                          f"{x['quantidade']:0>17}            ", axis=1)
+                                                          f"{x['quantidade']:0>17}{x['reserva']}", axis=1)
 
                     trailer: str = (f"static/escriturais/@deletar/resolucao160-"
                                     f"{st.session_state['empresa'].replace('/', '.')}-tipo{row}.txt")

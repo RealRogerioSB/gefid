@@ -92,61 +92,60 @@ with st.columns(2)[0]:
     st.button("**Pesquisar**", key="pesquisar", type="primary", icon=":material/search:")
 
 if st.session_state["pesquisar"]:
-    with st.spinner("**Pesquisando os dados, aguarde...**", show_time=True):
-        mci: int = kv.get(st.session_state["empresa"])
+    mci: int = kv.get(st.session_state["empresa"])
 
-        df_office: pd.DataFrame = load_cadastro("cod", mci)
-        nome_office: str = df_office["empresa"]
-        cnpj_office: str = df_office["cnpj"]
+    df_office: pd.DataFrame = load_cadastro("cod", mci)
+    nome_office: str = df_office["empresa"]
+    cnpj_office: str = df_office["cnpj"]
 
-        if not any([st.session_state["nome_investidor"], st.session_state["mci_investidor"],
-                    st.session_state["cpf_cnpj_investidor"]]):
-            st.toast("###### Deve preencher ao menos 1 campo abaixo.", icon=":material/warning:")
-            st.stop()
-
-        if all([st.session_state["nome_investidor"], st.session_state["mci_investidor"],
+    if not any([st.session_state["nome_investidor"], st.session_state["mci_investidor"],
                 st.session_state["cpf_cnpj_investidor"]]):
-            st.toast("###### Só deve preencher 1 campo abaixo.", icon=":material/warning:")
-            st.stop()
+        st.toast("###### Deve preencher ao menos 1 campo abaixo.", icon=":material/warning:")
+        st.stop()
 
-        with st.spinner("**:material/hourglass: Pesquisando os dados, aguarde...**", show_time=True):
-            df_cadastro: pd.DataFrame = load_cadastro(
-                field="nom" if st.session_state["nome_investidor"] else
-                "cod" if st.session_state["mci_investidor"] else "cod_cpf_cgc",
-                value=unidecode(st.session_state["nome_investidor"]).upper() if st.session_state["nome_investidor"] else
-                st.session_state["mci_investidor"] if st.session_state["mci_investidor"] else
-                st.session_state["cpf_cnpj_investidor"]
+    if all([st.session_state["nome_investidor"], st.session_state["mci_investidor"],
+            st.session_state["cpf_cnpj_investidor"]]):
+        st.toast("###### Só deve preencher 1 campo abaixo.", icon=":material/warning:")
+        st.stop()
+
+    with st.spinner("**:material/hourglass: Pesquisando os dados, aguarde...**", show_time=True):
+        df_cadastro: pd.DataFrame = load_cadastro(
+            field="nom" if st.session_state["nome_investidor"] else
+            "cod" if st.session_state["mci_investidor"] else "cod_cpf_cgc",
+            value=unidecode(st.session_state["nome_investidor"]).upper() if st.session_state["nome_investidor"] else
+            st.session_state["mci_investidor"] if st.session_state["mci_investidor"] else
+            st.session_state["cpf_cnpj_investidor"]
+        )
+
+        df_extrato: pd.DataFrame = load_extrato(
+            field="t2.NOM" if st.session_state["nome_investidor"] else
+            "t1.CD_CLI_TITR" if st.session_state["mci_investidor"] else
+            "t2.COD_CPF_CGC",
+            _mci=mci,
+            value=unidecode(st.session_state["nome_investidor"]).upper() if st.session_state["nome_investidor"] else
+            st.session_state["mci_investidor"] if st.session_state["mci_investidor"] else
+            st.session_state["cpf_cnpj_investidor"]
+        )
+
+        if not df_extrato.empty:
+            st.data_editor(
+                data=df_extrato,
+                hide_index=True,
+                use_container_width=True,
+                column_config={
+                    "tipo": st.column_config.NumberColumn("Tipo"),
+                    "data_mvt": st.column_config.DateColumn("Data", format="DD/MM/YYYY"),
+                    "quantidade": st.column_config.NumberColumn("Quantidade"),
+                    "valor": st.column_config.NumberColumn("Valor", format="dollar"),
+                    "valor_ir": st.column_config.NumberColumn("Valor IR", format="dollar"),
+                    "valor_liquido": st.column_config.NumberColumn("Valor Líquido", format="dollar"),
+                    "tipo_direito": st.column_config.TextColumn("Tipo de Direito"),
+                    "estado": st.column_config.TextColumn("Estado"),
+                    "forma_pagamento": st.column_config.TextColumn("Forma de Pagamento"),
+                },
             )
 
-            df_extrato: pd.DataFrame = load_extrato(
-                field="t2.NOM" if st.session_state["nome_investidor"] else
-                "t1.COD_CLI_TITR" if st.session_state["mci_investidor"] else
-                "t2.COD_CPF_CGC",
-                _mci=mci,
-                value=unidecode(st.session_state["nome_investidor"]).upper() if st.session_state["nome_investidor"] else
-                st.session_state["mci_investidor"] if st.session_state["mci_investidor"] else
-                st.session_state["cpf_cnpj_investidor"]
-            )
+            st.button("**Voltar**", key="back", type="primary", icon=":material/reply:")
 
-            if not df_extrato.empty:
-                st.data_editor(
-                    data=df_extrato,
-                    hide_index=True,
-                    use_container_width=True,
-                    column_config={
-                        "tipo": st.column_config.NumberColumn("Tipo"),
-                        "data_mvt": st.column_config.DateColumn("Data", format="DD/MM/YYYY"),
-                        "quantidade": st.column_config.NumberColumn("Quantidade"),
-                        "valor": st.column_config.NumberColumn("Valor", format="dollar"),
-                        "valor_ir": st.column_config.NumberColumn("Valor IR", format="dollar"),
-                        "valor_liquido": st.column_config.NumberColumn("Valor Líquido", format="dollar"),
-                        "tipo_direito": st.column_config.TextColumn("Tipo de Direito"),
-                        "estado": st.column_config.TextColumn("Estado"),
-                        "forma_pagamento": st.column_config.TextColumn("Forma de Pagamento"),
-                    },
-                )
-
-                st.button("**Voltar**", key="back", type="primary", icon=":material/reply:")
-
-            else:
-                st.toast("###### Não foram encontrados rendimentos para a pesquisa realizada.", icon=":material/error:")
+        else:
+            st.toast("###### Não foram encontrados rendimentos para a pesquisa realizada.", icon=":material/error:")

@@ -212,13 +212,14 @@ if st.session_state["montar"]:
         data_ant: date = (st.session_state["data"].replace(day=1) - timedelta(days=1)).replace(day=28)
 
         office: pd.DataFrame = load_empresa(mci, data_ant, st.session_state["data"])
+        office["pk"] = office.apply(lambda x: f"{x['mci']}-{x['cod_titulo']}-{x['custodiante']}", axis=1)
+        office = office.groupby(["pk"]).first()
+        office = office[office["quantidade"].ne(0)]
 
         if office.empty:
             st.toast("###### Não identificamos ações em tesouraria para a referida empresa", icon=":material/error:")
 
         else:
-            office = office[office["quantidade"].ne(0)]
-
             reportlab.rl_config.warnOnMissingFontGlyphs = 0
 
             pdfmetrics.registerFont(TTFont("VeraBI", "VeraBI.ttf"))

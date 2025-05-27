@@ -69,26 +69,26 @@ col1.selectbox(
 mci: int = kv.get(st.session_state["empresa"])
 
 if st.button("**Gerar DIPJ**", type="primary", icon=":material/save:"):
+    mci_emissor, nome_emissor, cnpj_emissor, cod_aeb = load_report(mci)
+
+    diretorio_origem: str = "static/escriturais/@deletar"
+    diretorio_destino: str = "static/escriturais/@deletar"
+
+    # pegando os arquivos com final ".PAGO"
+    all_files: list[str] = glob.glob(diretorio_origem + "/*.PAGO")
+
+    # Verificando se foram localizados 12 arquivos *.PAGO no diretório
+    if len(all_files) < 12:
+        st.toast("###### Tem menos de 12 arquivos de rendimentos pagos no diretório.Favor corrigir e reiniciar.",
+                        icon=":material/warning:")
+        st.stop()
+
+    if len(all_files) > 12:
+        st.toast("###### Tem mais de 12 arquivos de rendimentos pagos no diretório.Favor corrigir e reiniciar.",
+                        icon=":material/warning:")
+        st.stop()
+
     with st.spinner("**:material/hourglass: Verificando os dados, aguarde...**", show_time=True):
-        mci_emissor, nome_emissor, cnpj_emissor, cod_aeb = load_report(mci)
-
-        diretorio_origem: str = "static/escriturais/@deletar"
-        diretorio_destino: str = "static/escriturais/@deletar"
-
-        # pegando os arquivos com final ".PAGO"
-        all_files: list[str] = glob.glob(diretorio_origem + "/*.PAGO")
-
-        # Verificando se foram localizados 12 arquivos *.PAGO no diretório
-        if len(all_files) < 12:
-            st.toast("###### Tem menos de 12 arquivos de rendimentos pagos no diretório.Favor corrigir e reiniciar.",
-                            icon=":material/warning:")
-            st.stop()
-
-        if len(all_files) > 12:
-            st.toast("###### Tem mais de 12 arquivos de rendimentos pagos no diretório.Favor corrigir e reiniciar.",
-                            icon=":material/warning:")
-            st.stop()
-
         li = []
 
         # criando dict para modelar o dataframe com os 12 meses
@@ -139,9 +139,10 @@ if st.button("**Gerar DIPJ**", type="primary", icon=":material/save:"):
                      f"arquivos precisam ser do mesmo ano.\nIremos encerrar o processo.", icon=":material/warning:")
             st.stop()
 
+    with st.spinner("**:material/hourglass: Verificando os dados, aguarde...**", show_time=True):
         table = pd.pivot_table(dfs, values=["Vlr Bruto", "Vlr IR", "Vlr Líquido"],
-                               index=["País", "Tipo Pessoa", "Tipo Direito"],
-                               columns=["Mês Ref"], sort=False)
+                           index=["País", "Tipo Pessoa", "Tipo Direito"],
+                           columns=["Mês Ref"], sort=False)
 
         # substitui nan por zeros
         table = table.fillna(0)
